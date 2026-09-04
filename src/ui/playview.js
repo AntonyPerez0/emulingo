@@ -276,20 +276,41 @@ function cleanOcrText(raw) {
 }
 
 export async function captureAndTranslate(force) {
-  const canvas = await emulator.snapshot();
-  if (!canvas) {
+  const snap = await emulator.snapshot();
+  if (!snap || !snap.canvas) {
     if (force) setStatus('No game canvas - is the game running?');
     return false;
   }
+  const canvas = snap.canvas;
+  const grid = snap.grid;
   const s = store.get('stableThreshold') || 2;
 
-  let rects;
-  if (zone === 'manual' && manualRect) rects = [manualRect];
-  else rects = ocr.detectTextRects(canvas, 2);
-  if (!rects.length) rects = [ocr.detectTextRect(canvas)];
+  let det;
+  if (zone === 'manual' && manualRect) {
+    let r = manualRect;
+    if (grid) {
+      const nx = Math.round((r.x - grid.x0) / grid.scale);
+      const ny = Math.round((r.y - grid.y0) / grid.scale);
+      r = {
+        x: Math.max(0, Math.min(grid.nativeW - 6, nx)),
+        y: Math.max(0, Math.min(grid.nativeH - 6, ny)),
+        w: Math.max(6, Math.round(r.w / grid.scale)),
+        h: Math.max(6, Math.round(r.h / grid.scale))
+      };
+    }
+    det = { canvas, rects: [r] };
+  } else {
+    det = ocr.detectTextRects(canvas, 2, grid);
+  }
+  const work = det.canvas;
+  let rects = det.rects;
+  if (!rects.length) {
+    const W = work.width, H = work.height;
+    rects = [{ x: Math.round(W * 0.06), y: Math.round(H * 0.70), w: Math.round(W * 0.88), h: Math.round(H * 0.26) }];
+  }
 
   // frame signature to skip identical frames
-  const sig = canvas.width + 'x' + canvas.height + ':' + rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';') + ':' + rects.map((r) => roughSignature(canvas, r)).join('|');
+  const sig = work.width + 'x' + work.height + ':' + rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';') + ':' + rects.map((r) => roughSignature(work, r)).join('|');
   if (!force && sig === lastFrameSig) return false;
   lastFrameSig = sig;
 
@@ -299,7 +320,7 @@ export async function captureAndTranslate(force) {
   for (let i = 0; i < rects.length; i++) {
     let result;
     try {
-      result = await ocr.ocrRegion(canvas, rects[i], lang, (m) => {
+      result = await ocr.ocrRegion(work, rects[i], lang, (m) => {
         if (!m || !m.status) return;
         const p = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : '';
         const tag = rects.length > 1 ? ` (${i + 1}/${rects.length})` : '';
@@ -307,7 +328,7 @@ export async function captureAndTranslate(force) {
       });
     } catch (e) {
       setStatus('OCR failed: ' + (e.message || e));
-      return;
+      return false;
     }
     const clean = cleanOcrText(result.text);
     if (clean && result.confidence >= 42) results.push({ text: clean, conf: result.confidence });

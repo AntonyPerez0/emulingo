@@ -8,6 +8,28 @@ let readyResolve = null;
 
 const EJS_BASE = 'https://cdn.emulatorjs.org/stable/data/';
 
+// Native output resolution per core - lets OCR work on the crisp pixel
+// grid instead of the blurry GL-upscaled canvas.
+const NATIVE_DIMS = {
+  gb: [160, 144], gba: [240, 160], nes: [256, 224], snes: [256, 224],
+  segaMD: [320, 224], segaMS: [256, 192], segaGG: [160, 144], vb: [384, 224], nds: [256, 384]
+};
+
+export function getGrid() {
+  const dims = NATIVE_DIMS[window.__emulingoCore];
+  const src = getGameCanvas();
+  if (!dims || !src || src.width < 10 || src.height < 10) return null;
+  const scale = Math.min(src.width / dims[0], src.height / dims[1]);
+  const contentW = Math.round(dims[0] * scale);
+  const contentH = Math.round(dims[1] * scale);
+  return {
+    nativeW: dims[0], nativeH: dims[1],
+    contentW, contentH,
+    x0: Math.round((src.width - contentW) / 2),
+    y0: Math.round((src.height - contentH) / 2)
+  };
+}
+
 // Force preserveDrawingBuffer on WebGL contexts created by the emulator so
 // canvas readbacks (OCR snapshots) always contain the presented frame.
 // Without this, drawImage/readPixels between render passes returns cleared
@@ -53,6 +75,7 @@ export async function loadRom(id, opts = {}) {
 
   window.EJS_player = '#game';
   window.EJS_core = core || 'gb';
+  window.__emulingoCore = core || 'gb';
   window.EJS_gameName = name.replace(/\.[^.]+$/, '');
   window.EJS_gameUrl = createObjectUrlFor(id);
   window.EJS_pathtodata = EJS_BASE;
@@ -168,20 +191,33 @@ function grabFrame(src) {
 // inside requestAnimationFrame callbacks - the buffer holds the presented
 // frame right after the emulator's own render pass. A few tries smooth out
 // the race between our callback and the emulator's render loop.
+// Grab the current game frame. WebGL canvases without preserveDrawingBuffer
+// read back empty between frames, so if the first grab is cleared we retry
+// inside requestAnimationFrame callbacks. rAF never fires on hidden pages,
+// so every wait races a timeout - the preserveDrawingBuffer shim makes the
+// synchronous grab reliable anyway.
 export function snapshot() {
   const src = getGameCanvas();
   if (!src || src.width < 10 || src.height < 10) return Promise.resolve(null);
+  const finish = (out) => Promise.resolve(out ? { canvas: out, grid: getGrid() } : null);
   const first = grabFrame(src);
-  if (first && !isCleared(first)) return Promise.resolve(first);
+  if (first && !isCleared(first)) return finish(first);
   return new Promise((resolve) => {
     let tries = 0;
     const attempt = () => {
       const out = grabFrame(src);
       if ((out && !isCleared(out)) || ++tries >= 6) resolve(out);
-      else requestAnimationFrame(attempt);
+      else rafOrTimeout(attempt);
     };
-    requestAnimationFrame(attempt);
+    rafOrTimeout(attempt);
   });
+}
+
+function rafOrTimeout(fn) {
+  let done = false;
+  const run = () => { if (!done) { done = true; fn(); } };
+  const id = requestAnimationFrame(run);
+  setTimeout(() => { cancelAnimationFrame(id); run(); }, 250);
 }
 
 export function restartGame() {

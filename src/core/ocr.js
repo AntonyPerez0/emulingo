@@ -37,11 +37,11 @@ export async function terminateOcr() {
 // Pre-process: crop, upscale (nearest neighbour - keeps pixel-font edges
 // crisp), grayscale, binarize (Otsu threshold)
 function preprocess(canvas, rect, scale) {
-  // aim for a crop around 400px tall so small game text lands at a good
-  // OCR size; clamp so big buffers aren't upscaled into a blur
+  // aim for a crop around 400px tall; native-pixel crops are crisp so a
+  // strong upscale is safe
   let s = scale || 3;
-  if (rect.h > 40) s = Math.round(400 / rect.h);
-  s = Math.max(2, Math.min(6, s));
+  if (rect.h > 10) s = Math.round(400 / rect.h);
+  s = Math.max(2, Math.min(10, s));
   const maxDim = Math.max(rect.w, rect.h);
   if (maxDim * s > 1600) s = Math.max(1, Math.floor(1600 / maxDim));
   s = Math.max(1, s);
@@ -107,14 +107,24 @@ export async function ocrRegion(canvas, rect, lang, onProgress) {
   };
 }
 
-// Locate dialog boxes: find bands of rows that mix light (box background)
-// and dark (border/text) pixels - i.e. white text boxes - and crop inside
-// them. Works on any background (black, cyan, scenery) because it looks for
-// the box itself, not dark text on the raw frame. Returns up to `max` rects,
-// bottom-most first (the active dialog lives at the bottom).
-export function detectTextRects(canvas, max = 2) {
-  const w = canvas.width, h = canvas.height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+// Locate dialog boxes. If a grid is provided, the frame is first downscaled
+// to the core's native resolution (160x144 for GB) - recovering the crisp
+// pixel grid from the blurry GL upscale - and detection + cropping happen
+// there. Returns { canvas: analysisCanvas, rects } with rects in that
+// canvas' coordinates. Returns up to `max` rects, bottom-most first.
+export function detectTextRects(canvas, max = 2, grid = null) {
+  let work = canvas;
+  if (grid && grid.nativeW) {
+    const nc = document.createElement('canvas');
+    nc.width = grid.nativeW; nc.height = grid.nativeH;
+    const nctx = nc.getContext('2d', { willReadFrequently: true });
+    nctx.imageSmoothingEnabled = true;
+    nctx.imageSmoothingQuality = 'high';
+    nctx.drawImage(canvas, grid.x0, grid.y0, grid.contentW, grid.contentH, 0, 0, grid.nativeW, grid.nativeH);
+    work = nc;
+  }
+  const w = work.width, h = work.height;
+  const ctx = work.getContext('2d', { willReadFrequently: true });
   const d = ctx.getImageData(0, 0, w, h).data;
   const lum = new Float32Array(w * h);
   const colDark = new Uint16Array(w);
@@ -130,9 +140,9 @@ export function detectTextRects(canvas, max = 2) {
   let cx0 = 0, cx1 = w - 1;
   while (cx0 < cx1 && colDark[cx0] >= h * 0.95) cx0++;
   while (cx1 > cx0 && colDark[cx1] >= h * 0.95) cx1--;
-  if (cx1 - cx0 < 8) return [];
+  if (cx1 - cx0 < 8) return { canvas: work, rects: [] };
   const cw = cx1 - cx0 + 1;
-  const contrastThreshold = Math.max(6, Math.round(cw * 0.03));
+  const contrastThreshold = Math.max(4, Math.round(cw * 0.03));
   // per-row light/dark counts within content columns
   const rowLight = new Uint16Array(h), rowDark = new Uint16Array(h);
   for (let y = 0; y < h; y++) {
@@ -155,13 +165,15 @@ export function detectTextRects(canvas, max = 2) {
       if (!cur) cur = { y0: y, y1: y };
       cur.y1 = y; miss = 0;
     } else if (cur) {
-      if (++miss > 3) { rawBands.push(cur); cur = null; }
+      if (++miss > 5) { rawBands.push(cur); cur = null; }
     }
   }
   if (cur) rawBands.push(cur);
-  // expand each seed band through the box's light interior (white gap rows
-  // between text lines) until the dark border stops it - one band per box
-  const boxy = (y) => y >= 0 && y < h && rowLight[y] >= cw * 0.5;
+  // expand each seed band until a dark-dominant row (box border / black
+  // background) - text rows and white gap rows are all interior. On the
+  // native grid borders are ~90% dark vs ~25% for text rows, so this
+  // cleanly spans multi-line boxes without leaking into the background.
+  const boxy = (y) => y >= 0 && y < h && rowDark[y] < cw * 0.75;
   for (const b of rawBands) {
     while (boxy(b.y0 - 1)) b.y0--;
     while (boxy(b.y1 + 1)) b.y1++;
@@ -183,7 +195,7 @@ export function detectTextRects(canvas, max = 2) {
     // not a text box (real GB dialog boxes are ~33% of the screen)
     return bh <= h * 0.42;
   });
-  if (!bands.length) return [];
+  if (!bands.length) return { canvas: work, rects: [] };
   const picked = bands.slice(-max);
   const rects = [];
   for (const b of picked) {
@@ -207,11 +219,35 @@ export function detectTextRects(canvas, max = 2) {
     rects.push({
       x: x0 + insetX,
       y: y0 + insetY,
-      w: Math.max(8, x1 - x0 - insetX * 2),
-      h: Math.max(8, y1 - y0 - insetY * 2)
+      w: Math.max(6, x1 - x0 - insetX * 2),
+      h: Math.max(6, y1 - y0 - insetY * 2)
     });
   }
-  return rects;
+  return { canvas: work, rects };
+}
+
+// temporary debug helper (used by romtest.html)
+export function debugDetect(canvas, grid = null) {
+  const res = detectTextRects(canvas, 4, grid);
+  const work = res.canvas;
+  const w = work.width, h = work.height;
+  const ctx = work.getContext('2d', { willReadFrequently: true });
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const rowLight = new Uint16Array(h), rowDark = new Uint16Array(h);
+  for (let y = 0; y < h; y++) {
+    let li = 0, da = 0;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const l = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      if (l < 90) da++; else if (l > 150) li++;
+    }
+    rowLight[y] = li; rowDark[y] = da;
+  }
+  const profile = [];
+  for (let y = 0; y < h; y += Math.max(1, Math.round(h / 48))) {
+    profile.push(y + ':' + rowLight[y] + '/' + rowDark[y]);
+  }
+  return { rects: res.rects, rowProfile: profile };
 }
 
 // single-rect convenience (manual zone fallback etc.)

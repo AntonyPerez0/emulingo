@@ -256,6 +256,17 @@ function setStatus(msg) {
   if (el) el.textContent = msg || '';
 }
 
+function cleanOcrText(raw) {
+  const clean = String(raw || '')
+    .replace(/[-_=~•·─═║╔╗╚╝╠╣╦╩╬▶»]{2,}/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const letters = (clean.match(/\p{L}/gu) || []).length;
+  const nonSpace = clean.replace(/\s/g, '').length;
+  if (!clean || letters < 3 || letters < nonSpace * 0.35) return null;
+  return clean;
+}
+
 export async function captureAndTranslate(force) {
   const canvas = await emulator.snapshot();
   if (!canvas) {
@@ -264,45 +275,47 @@ export async function captureAndTranslate(force) {
   }
   const s = store.get('stableThreshold') || 2;
 
-  let rect;
-  if (zone === 'manual' && manualRect) rect = manualRect;
-  else rect = ocr.detectTextRect(canvas);
+  let rects;
+  if (zone === 'manual' && manualRect) rects = [manualRect];
+  else rects = ocr.detectTextRects(canvas, 2);
+  if (!rects.length) rects = [ocr.detectTextRect(canvas)];
 
   // frame signature to skip identical frames
-  const sig = canvas.width + 'x' + canvas.height + ':' + rect.x + ',' + rect.y + ',' + rect.w + ',' + rect.h + ':' + roughSignature(canvas, rect);
+  const sig = canvas.width + 'x' + canvas.height + ':' + rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';') + ':' + rects.map((r) => roughSignature(canvas, r)).join('|');
   if (!force && sig === lastFrameSig) return;
   lastFrameSig = sig;
 
   if (force) setStatus('Reading screen…');
-  let result;
-  try {
-    result = await ocr.ocrRegion(canvas, rect, ocrLangFor(store.get('source')), (m) => {
-      if (!m || !m.status) return;
-      setStatus(m.progress != null ? `${m.status} ${Math.round(m.progress * 100)}%` : m.status);
-    });
-  } catch (e) {
-    setStatus('OCR failed: ' + (e.message || e));
-    return;
+  const lang = ocrLangFor(store.get('source'));
+  const results = [];
+  for (let i = 0; i < rects.length; i++) {
+    let result;
+    try {
+      result = await ocr.ocrRegion(canvas, rects[i], lang, (m) => {
+        if (!m || !m.status) return;
+        const p = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : '';
+        const tag = rects.length > 1 ? ` (${i + 1}/${rects.length})` : '';
+        setStatus(`${m.status}${p}${tag}`);
+      });
+    } catch (e) {
+      setStatus('OCR failed: ' + (e.message || e));
+      return;
+    }
+    const clean = cleanOcrText(result.text);
+    if (clean && result.confidence >= 35) results.push({ text: clean, conf: result.confidence });
   }
   updateFps();
 
-  const text = (result.text || '').trim();
-  // strip dialog-box border artifacts (runs of line characters)
-  const clean = text
-    .replace(/[-_=~•·─═║╔╗╚╝╠╣╦╩╬▶»]{2,}/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const letters = (clean.match(/\p{L}/gu) || []).length;
-  const nonSpace = clean.replace(/\s/g, '').length;
-  if (letters < 3 || letters < nonSpace * 0.35) {
+  if (!results.length) {
     if (force) setStatus('No readable text - open a dialogue box, or set Zone: Manual.');
     return;
   }
-  if (result.confidence < 40) {
-    if (force) setStatus(`Uncertain read (${Math.round(result.confidence)}%) - try Zone: Manual.`);
+  const finalText = results.map((r) => r.text).join(' / ');
+  const conf = Math.max(...results.map((r) => r.conf));
+  if (conf < 40) {
+    if (force) setStatus(`Uncertain read (${Math.round(conf)}%) - try Zone: Manual.`);
     return;
   }
-  const finalText = clean;
   if (lineEquals(finalText, lastStableText)) {
     stableCount++;
   } else {
@@ -311,7 +324,7 @@ export async function captureAndTranslate(force) {
   }
   if (stableCount < s && !force) return;
 
-  await processNewLine(finalText, result.confidence);
+  await processNewLine(finalText, conf);
 }
 
 function roughSignature(canvas, rect) {

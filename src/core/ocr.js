@@ -107,89 +107,105 @@ export async function ocrRegion(canvas, rect, lang, onProgress) {
   };
 }
 
-// Locate the dialog text: trim letterbox bars, find the densest band of
-// dark rows (the dialog box), crop to its dark-pixel extent and inset a
-// little to skip the box border lines.
-export function detectTextRect(canvas) {
+// Locate dialog boxes: find bands of rows that mix light (box background)
+// and dark (border/text) pixels - i.e. white text boxes - and crop inside
+// them. Works on any background (black, cyan, scenery) because it looks for
+// the box itself, not dark text on the raw frame. Returns up to `max` rects,
+// bottom-most first (the active dialog lives at the bottom).
+export function detectTextRects(canvas, max = 2) {
   const w = canvas.width, h = canvas.height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const d = ctx.getImageData(0, 0, w, h).data;
   const lum = new Float32Array(w * h);
-  const colDark = new Uint16Array(w), rowDark = new Uint16Array(h);
+  const colDark = new Uint16Array(w);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       const l = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
       lum[y * w + x] = l;
-      if (l < 90) { colDark[x]++; rowDark[y]++; }
+      if (l < 90) colDark[x]++;
     }
   }
-  // trim letterbox bars (columns/rows that are almost solid dark)
-  let cx0 = 0, cx1 = w - 1, cy0 = 0, cy1 = h - 1;
-  const solidCol = h * 0.95, solidRow = w * 0.95;
-  while (cx0 < cx1 && colDark[cx0] >= solidCol) cx0++;
-  while (cx1 > cx0 && colDark[cx1] >= solidCol) cx1--;
-  if (cx1 - cx0 < 8) return { x: Math.round(w * 0.06), y: Math.round(h * 0.70), w: Math.round(w * 0.88), h: Math.round(h * 0.26) };
-  // re-count row darkness within content columns only (bars would
-  // otherwise make every row look text-y)
-  rowDark.fill(0);
-  for (let y = 0; y < h; y++) {
-    let c = 0;
-    for (let x = cx0; x <= cx1; x++) {
-      if (lum[y * w + x] < 90) c++;
-    }
-    rowDark[y] = c;
-  }
-  while (cy0 < cy1 && rowDark[cy0] >= solidRow) cy0++;
-  while (cy1 > cy0 && rowDark[cy1] >= solidRow) cy1--;
+  // trim letterbox bars (columns that are almost solid dark)
+  let cx0 = 0, cx1 = w - 1;
+  while (cx0 < cx1 && colDark[cx0] >= h * 0.95) cx0++;
+  while (cx1 > cx0 && colDark[cx1] >= h * 0.95) cx1--;
+  if (cx1 - cx0 < 8) return [];
   const cw = cx1 - cx0 + 1;
-  const rowThreshold = Math.max(3, Math.round(cw * 0.025));
-  // bands of text-y rows (tolerate 2-row dips inside a band)
+  const contrastThreshold = Math.max(6, Math.round(cw * 0.06));
+  // per-row light/dark counts within content columns
+  const rowLight = new Uint16Array(h), rowDark = new Uint16Array(h);
+  for (let y = 0; y < h; y++) {
+    let li = 0, da = 0;
+    for (let x = cx0; x <= cx1; x++) {
+      const l = lum[y * w + x];
+      if (l < 90) da++; else if (l > 150) li++;
+    }
+    rowLight[y] = li; rowDark[y] = da;
+  }
+  // bands of "contrast" rows: the box interior mixes white background with
+  // dark text/borders; pure background rows (black or cyan) have no mix
   const rawBands = [];
   let cur = null, miss = 0;
-  for (let y = cy0; y <= cy1; y++) {
-    if (rowDark[y] >= rowThreshold) {
-      if (!cur) cur = { y0: y, y1: y, total: 0 };
-      cur.y1 = y; cur.total += Math.min(rowDark[y], cw); miss = 0;
+  for (let y = 0; y < h; y++) {
+    if (Math.min(rowLight[y], rowDark[y]) >= contrastThreshold) {
+      if (!cur) cur = { y0: y, y1: y };
+      cur.y1 = y; miss = 0;
     } else if (cur) {
-      if (++miss > 2) { rawBands.push(cur); cur = null; }
+      if (++miss > 3) { rawBands.push(cur); cur = null; }
     }
   }
   if (cur) rawBands.push(cur);
-  // merge nearby bands so border lines + text land in one region
-  const mergeGap = Math.max(6, Math.round(h * 0.07));
+  // expand each seed band through the box's light interior (white gap rows
+  // between text lines) until the dark border stops it - one band per box
+  const boxy = (y) => y >= 0 && y < h && rowLight[y] >= cw * 0.5;
+  for (const b of rawBands) {
+    while (boxy(b.y0 - 1)) b.y0--;
+    while (boxy(b.y1 + 1)) b.y1++;
+  }
+  // merge line gaps inside one box (small), never the gaps between boxes
+  const mergeGap = Math.max(4, Math.round(h * 0.035));
   const mergedBands = [];
   for (const b of rawBands) {
     const last = mergedBands[mergedBands.length - 1];
-    if (last && b.y0 - last.y1 <= mergeGap) { last.y1 = b.y1; last.total += b.total; }
+    if (last && b.y0 - last.y1 <= mergeGap) last.y1 = b.y1;
     else mergedBands.push({ ...b });
   }
-  // pick the best band, biased towards the bottom of the screen where
-  // dialog boxes live (so HP bars / menus don't win)
-  let best = null, bestScore = -1;
-  for (const b of mergedBands) {
-    const score = b.total * (0.5 + 0.5 * (b.y1 / h));
-    if (score > bestScore) { bestScore = score; best = b; }
-  }
-  if (!best) return { x: Math.round(w * 0.06), y: Math.round(h * 0.70), w: Math.round(w * 0.88), h: Math.round(h * 0.26) };
-  // horizontal extent of dark pixels within the chosen band
-  let minX = w, maxX = -1;
-  for (let y = best.y0; y <= best.y1; y++) {
-    for (let x = cx0; x <= cx1; x++) {
-      if (lum[y * w + x] < 90) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
+  const bands = mergedBands.filter((b) => b.y1 - b.y0 >= 4);
+  if (!bands.length) return [];
+  const picked = bands.slice(-max);
+  const rects = [];
+  for (const b of picked) {
+    // horizontal extent of box pixels (light or dark) within the band
+    let minX = w, maxX = -1;
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = cx0; x <= cx1; x++) {
+        const l = lum[y * w + x];
+        if (l < 90 || l > 150) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
+      }
     }
+    if (maxX <= minX) continue;
+    const pad = 2;
+    const x0 = Math.max(cx0, minX - pad);
+    const y0 = Math.max(0, b.y0 - pad);
+    const x1 = Math.min(cx1 + 1, maxX + pad + 1);
+    const y1 = Math.min(h, b.y1 + pad + 1);
+    // inset past the box border lines
+    const insetY = Math.max(2, Math.round((y1 - y0) * 0.08));
+    const insetX = Math.max(2, Math.round((x1 - x0) * 0.04));
+    rects.push({
+      x: x0 + insetX,
+      y: y0 + insetY,
+      w: Math.max(8, x1 - x0 - insetX * 2),
+      h: Math.max(8, y1 - y0 - insetY * 2)
+    });
   }
-  if (maxX <= minX) { minX = cx0; maxX = cx1; }
-  const pad = 2;
-  const x0 = Math.max(cx0, minX - pad);
-  const y0 = Math.max(cy0, best.y0 - pad);
-  const x1 = Math.min(cx1 + 1, maxX + pad + 1);
-  const y1 = Math.min(cy1 + 1, best.y1 + pad + 1);
-  const inset = Math.max(2, Math.round(Math.min(x1 - x0, y1 - y0) * 0.05));
-  return {
-    x: x0 + inset,
-    y: y0 + inset,
-    w: Math.max(8, x1 - x0 - inset * 2),
-    h: Math.max(8, y1 - y0 - inset * 2)
-  };
+  return rects;
+}
+
+// single-rect convenience (manual zone fallback etc.)
+export function detectTextRect(canvas) {
+  const rects = detectTextRects(canvas, 1);
+  if (rects.length) return rects[0];
+  return { x: Math.round(canvas.width * 0.06), y: Math.round(canvas.height * 0.70), w: Math.round(canvas.width * 0.88), h: Math.round(canvas.height * 0.26) };
 }

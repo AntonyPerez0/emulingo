@@ -111,6 +111,7 @@ function bindPlayEvents(page) {
   page.querySelector('#btn-quit-rom').addEventListener('click', async () => {
     stopOcrLoop();
     await autoSaveState();
+    document.body.classList.remove('playing');
     emulator.quit();
     window.location.reload();
   });
@@ -160,6 +161,7 @@ async function startRom(id) {
   const page = document.getElementById('tab-play');
   page.querySelector('#drop-zone').classList.add('hidden');
   page.querySelector('#emulator-wrap').classList.remove('hidden');
+  document.body.classList.add('playing');
   renderStatus('Loading emulator…');
   try {
     await emulator.loadRom(id, { core: store.get('core'), fastBoot: store.get('fastBoot') });
@@ -565,4 +567,10 @@ document.addEventListener('visibilitychange', () => {
   } else if (emulator.currentRom()) {
     startOcrLoop();
   }
+});
+
+// The fixed game+translation layout only applies while the Play tab is active with a game running.
+window.addEventListener('tabchange', (e) => {
+  if (e.detail.tab === 'play' && emulator.currentRom()) document.body.classList.add('playing');
+  else document.body.classList.remove('playing');
 });

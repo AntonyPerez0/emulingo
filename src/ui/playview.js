@@ -287,24 +287,31 @@ export async function captureAndTranslate(force) {
   updateFps();
 
   const text = (result.text || '').trim();
-  if (!text || text.length < 2) {
-    if (force) setStatus('No text found - open a dialogue box, or set Zone: Manual.');
+  // strip dialog-box border artifacts (runs of line characters)
+  const clean = text
+    .replace(/[-_=~•·─═║╔╗╚╝╠╣╦╩╬▶»]{2,}/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const letters = (clean.match(/\p{L}/gu) || []).length;
+  const nonSpace = clean.replace(/\s/g, '').length;
+  if (letters < 3 || letters < nonSpace * 0.35) {
+    if (force) setStatus('No readable text - open a dialogue box, or set Zone: Manual.');
     return;
   }
-  if (result.confidence > 0 && result.confidence < 35) {
+  if (result.confidence < 45) {
     if (force) setStatus(`Uncertain read (${Math.round(result.confidence)}%) - try Zone: Manual.`);
     return;
   }
-
-  if (lineEquals(text, lastStableText)) {
+  const finalText = clean;
+  if (lineEquals(finalText, lastStableText)) {
     stableCount++;
   } else {
     stableCount = 1;
-    lastStableText = text;
+    lastStableText = finalText;
   }
   if (stableCount < s && !force) return;
 
-  await processNewLine(text, result.confidence);
+  await processNewLine(finalText, result.confidence);
 }
 
 function roughSignature(canvas, rect) {

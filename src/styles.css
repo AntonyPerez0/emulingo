@@ -367,7 +367,7 @@ select, input[type="text"], input[type="password"] {
     padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
   body.playing #tab-play { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  body.playing .play-layout { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  body.playing .play-layout { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
   body.playing .play-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   body.playing .rom-library { display: none; }
   body.playing .emulator-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }

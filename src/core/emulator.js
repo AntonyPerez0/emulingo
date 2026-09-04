@@ -8,6 +8,21 @@ let readyResolve = null;
 
 const EJS_BASE = 'https://cdn.emulatorjs.org/stable/data/';
 
+// Force preserveDrawingBuffer on WebGL contexts created by the emulator so
+// canvas readbacks (OCR snapshots) always contain the presented frame.
+// Without this, drawImage/readPixels between render passes returns cleared
+// buffers and OCR has nothing to read.
+if (typeof HTMLCanvasElement !== 'undefined' && !HTMLCanvasElement.prototype.__emulingoPatched) {
+  const origGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    if (typeof type === 'string' && type.includes('webgl')) {
+      attrs = Object.assign({}, attrs, { preserveDrawingBuffer: true });
+    }
+    return origGetContext.call(this, type, attrs);
+  };
+  HTMLCanvasElement.prototype.__emulingoPatched = true;
+}
+
 export function isLoaded() { return currentRomId !== null; }
 
 export function currentRom() { return currentRomId; }
@@ -150,18 +165,22 @@ function grabFrame(src) {
 
 // Grab the current game frame. WebGL canvases without preserveDrawingBuffer
 // read back empty between frames, so if the first grab is cleared we retry
-// inside a requestAnimationFrame, where the last presented frame is still
-// in the buffer.
+// inside requestAnimationFrame callbacks - the buffer holds the presented
+// frame right after the emulator's own render pass. A few tries smooth out
+// the race between our callback and the emulator's render loop.
 export function snapshot() {
   const src = getGameCanvas();
   if (!src || src.width < 10 || src.height < 10) return Promise.resolve(null);
   const first = grabFrame(src);
   if (first && !isCleared(first)) return Promise.resolve(first);
   return new Promise((resolve) => {
-    requestAnimationFrame(() => {
+    let tries = 0;
+    const attempt = () => {
       const out = grabFrame(src);
-      resolve(out);
-    });
+      if ((out && !isCleared(out)) || ++tries >= 6) resolve(out);
+      else requestAnimationFrame(attempt);
+    };
+    requestAnimationFrame(attempt);
   });
 }
 

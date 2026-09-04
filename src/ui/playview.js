@@ -106,12 +106,15 @@ function bindPlayEvents(page) {
   });
 
   page.querySelector('#btn-ocr-now').addEventListener('click', async () => {
-    const ok = await captureAndTranslate(true);
-    if (!ok) {
+    try {
+      if (await captureAndTranslate(true)) return;
       // the typewriter effect may have been mid-letter - try once more
       setStatus('Retrying once (text may still be typing)…');
       await new Promise((r) => setTimeout(r, 1100));
       await captureAndTranslate(true);
+    } catch (e) {
+      // never leave "Retrying once…" stuck if something throws mid-capture
+      setStatus('OCR failed: ' + (e.message || e));
     }
   });
   page.querySelector('#btn-save-state').addEventListener('click', saveState);
@@ -286,21 +289,33 @@ export async function captureAndTranslate(force) {
   const s = store.get('stableThreshold') || 2;
 
   let det;
+  let detectedCount = 0;
   if (zone === 'manual' && manualRect) {
     let r = manualRect;
+    let workCanvas = canvas;
     if (grid) {
-      const nx = Math.round((r.x - grid.x0) / grid.scale);
-      const ny = Math.round((r.y - grid.y0) / grid.scale);
+      // OCR on the crisp native grid (same as detectTextRects): downscale the
+      // content area once, then map the canvas-space rect into native coords
+      const nc = document.createElement('canvas');
+      nc.width = grid.nativeW; nc.height = grid.nativeH;
+      const nctx = nc.getContext('2d', { willReadFrequently: true });
+      nctx.imageSmoothingEnabled = true;
+      nctx.imageSmoothingQuality = 'high';
+      nctx.drawImage(canvas, grid.x0, grid.y0, grid.contentW, grid.contentH, 0, 0, grid.nativeW, grid.nativeH);
+      workCanvas = nc;
+      const nx = clamp(Math.round((r.x - grid.x0) / grid.scale), 0, grid.nativeW - 6);
+      const ny = clamp(Math.round((r.y - grid.y0) / grid.scale), 0, grid.nativeH - 6);
       r = {
-        x: Math.max(0, Math.min(grid.nativeW - 6, nx)),
-        y: Math.max(0, Math.min(grid.nativeH - 6, ny)),
-        w: Math.max(6, Math.round(r.w / grid.scale)),
-        h: Math.max(6, Math.round(r.h / grid.scale))
+        x: nx, y: ny,
+        w: clamp(Math.round(r.w / grid.scale), 6, grid.nativeW - nx),
+        h: clamp(Math.round(r.h / grid.scale), 6, grid.nativeH - ny)
       };
     }
-    det = { canvas, rects: [r] };
+    det = { canvas: workCanvas, rects: [r] };
+    detectedCount = 1;
   } else {
     det = ocr.detectTextRects(canvas, 2, grid);
+    detectedCount = det.rects.length;
   }
   const work = det.canvas;
   let rects = det.rects;
@@ -317,6 +332,7 @@ export async function captureAndTranslate(force) {
   if (force) setStatus('Reading screen…');
   const lang = ocrLangFor(store.get('source'));
   const results = [];
+  let bestConf = 0;
   for (let i = 0; i < rects.length; i++) {
     let result;
     try {
@@ -330,19 +346,27 @@ export async function captureAndTranslate(force) {
       setStatus('OCR failed: ' + (e.message || e));
       return false;
     }
+    bestConf = Math.max(bestConf, result.confidence || 0);
     const clean = cleanOcrText(result.text);
     if (clean && result.confidence >= 42) results.push({ text: clean, conf: result.confidence });
   }
   updateFps();
 
   if (!results.length) {
-    if (force) setStatus('No readable text - open a dialogue box, or set Zone: Manual.');
+    if (force) {
+      if (detectedCount === 0) {
+        // nothing detected - only the default bottom-strip zone was read
+        setStatus('No dialog box found on screen (fallback zone)');
+      } else {
+        setStatus(`No readable text (regions: ${detectedCount}, best conf: ${Math.round(bestConf)}%)`);
+      }
+    }
     return false;
   }
   const finalText = results.map((r) => r.text).join(' / ');
   const conf = Math.max(...results.map((r) => r.conf));
   if (conf < 40) {
-    if (force) setStatus(`Uncertain read (${Math.round(conf)}%) - text may still be typing, try again.`);
+    if (force) setStatus(`Uncertain read ${Math.round(conf)}% (${rects.length} regions) - text may still be typing`);
     return false;
   }
   if (lineEquals(finalText, lastStableText)) {

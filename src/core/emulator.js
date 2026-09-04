@@ -20,10 +20,12 @@ export function getGrid() {
   const src = getGameCanvas();
   if (!dims || !src || src.width < 10 || src.height < 10) return null;
   const scale = Math.min(src.width / dims[0], src.height / dims[1]);
-  const contentW = Math.round(dims[0] * scale);
-  const contentH = Math.round(dims[1] * scale);
+  // clamp content to the backing store - rounding can push it past the edge
+  const contentW = Math.min(src.width, Math.round(dims[0] * scale));
+  const contentH = Math.min(src.height, Math.round(dims[1] * scale));
   return {
     nativeW: dims[0], nativeH: dims[1],
+    scale,
     contentW, contentH,
     x0: Math.round((src.width - contentW) / 2),
     y0: Math.round((src.height - contentH) / 2)
@@ -98,6 +100,7 @@ export async function loadRom(id, opts = {}) {
 export function quit() {
   flushSram();
   currentRomId = null;
+  window.__emulingoCore = null;
   const container = document.getElementById('game');
   if (container) container.innerHTML = '';
 }

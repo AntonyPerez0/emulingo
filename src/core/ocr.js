@@ -34,53 +34,47 @@ export async function terminateOcr() {
   if (worker) { try { await worker.terminate(); } catch {} worker = null; workerPromise = null; currentLang = null; }
 }
 
-// Pre-process: crop, upscale (nearest neighbour - keeps pixel-font edges
-// crisp), grayscale, binarize (Otsu threshold)
+// Pre-process: crop, upscale in two stages (bilinear 2x supplies smooth gray
+// gradients across anti-aliased glyph edges, then nearest-neighbour to full
+// size so pixel-font stems stay blocky), then grayscale. Binarization is left
+// to Tesseract: its internal adaptive thresholding clearly beats a global
+// Otsu pass here (measured deu confidence 9 -> 68+ on a Crystal intro box).
 function preprocess(canvas, rect, scale) {
   // aim for a crop around 400px tall; native-pixel crops are crisp so a
   // strong upscale is safe
   let s = scale || 3;
   if (rect.h > 10) s = Math.round(400 / rect.h);
   s = Math.max(2, Math.min(10, s));
+  // white margin keeps glyphs away from the image border (Tesseract line
+  // finding degrades on edge-hugging text)
+  const pad = 24;
   const maxDim = Math.max(rect.w, rect.h);
-  if (maxDim * s > 1600) s = Math.max(1, Math.floor(1600 / maxDim));
+  if (maxDim * s + pad * 2 > 1600) s = Math.max(1, Math.floor((1600 - pad * 2) / maxDim));
   s = Math.max(1, s);
-  const w = Math.max(8, Math.round((rect.w) * s));
-  const h = Math.max(8, Math.round((rect.h) * s));
+  const pre = Math.min(2, s);
+  const nn = Math.max(1, Math.round(s / pre));
+  const mid = document.createElement('canvas');
+  mid.width = Math.max(8, rect.w * pre);
+  mid.height = Math.max(8, rect.h * pre);
+  let ctx = mid.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, mid.width, mid.height);
+  const w = Math.max(8, mid.width * nn);
+  const h = Math.max(8, mid.height * nn);
   const out = document.createElement('canvas');
-  out.width = w; out.height = h;
-  const ctx = out.getContext('2d', { willReadFrequently: true });
+  out.width = w + pad * 2; out.height = h + pad * 2;
+  ctx = out.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, w, h);
-  const img = ctx.getImageData(0, 0, w, h);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(mid, 0, 0, mid.width, mid.height, pad, pad, w, h);
+  const img = ctx.getImageData(0, 0, out.width, out.height);
   const d = img.data;
-  // grayscale histogram for Otsu
-  const hist = new Array(256).fill(0);
-  const gray = new Uint8ClampedArray(w * h);
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+  // grayscale (RGB = luminance, opaque alpha); Tesseract binarizes internally
+  for (let i = 0; i < d.length; i += 4) {
     const g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
-    gray[p] = g;
-    hist[g]++;
-  }
-  // Otsu
-  const total = w * h;
-  let sum = 0;
-  for (let t = 0; t < 256; t++) sum += t * hist[t];
-  let sumB = 0, wB = 0, maxVar = 0, threshold = 127;
-  for (let t = 0; t < 256; t++) {
-    wB += hist[t];
-    if (wB === 0) continue;
-    const wF = total - wB;
-    if (wF === 0) break;
-    sumB += t * hist[t];
-    const mB = sumB / wB;
-    const mF = (sum - sumB) / wF;
-    const between = wB * wF * (mB - mF) * (mB - mF);
-    if (between > maxVar) { maxVar = between; threshold = t; }
-  }
-  for (let p = 0, i = 0; p < gray.length; p++, i += 4) {
-    const v = gray[p] > threshold ? 255 : 0;
-    d[i] = d[i + 1] = d[i + 2] = v;
+    d[i] = d[i + 1] = d[i + 2] = g;
     d[i + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);

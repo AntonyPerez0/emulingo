@@ -10,13 +10,21 @@ async function ensureWorker(lang, onProgress) {
   currentLang = lang;
   workerPromise = (async () => {
     if (worker) { await worker.terminate(); worker = null; }
+    if (onProgress) onProgress({ status: `downloading ${lang} OCR data (once, ~12 MB)`, progress: 0 });
     worker = await Tesseract.createWorker(lang, 1, {
+      // float LSTM models: noticeably better on tiny game fonts than the default
+      langPath: 'https://tessdata.projectnaptha.com/4.0.0_best',
       logger: (m) => { if (onProgress) onProgress(m); },
       errorHandler: () => {}
     });
-    // dialogue boxes are one uniform block of text
+    // dialogue boxes are one uniform block of text; fake a print DPI and
+    // keep common border-art characters out of the output
     const psm = (window.Tesseract && Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK) || '6';
-    await worker.setParameters({ tessedit_pageseg_mode: psm });
+    await worker.setParameters({
+      tessedit_pageseg_mode: psm,
+      user_defined_dpi: '300',
+      tessedit_char_blacklist: '_|~{}[]<>^°'
+    });
     return worker;
   })();
   return workerPromise;
@@ -26,18 +34,23 @@ export async function terminateOcr() {
   if (worker) { try { await worker.terminate(); } catch {} worker = null; workerPromise = null; currentLang = null; }
 }
 
-// Pre-process: crop, scale up, grayscale, binarize (Otsu threshold)
+// Pre-process: crop, upscale (nearest neighbour - keeps pixel-font edges
+// crisp), grayscale, binarize (Otsu threshold)
 function preprocess(canvas, rect, scale) {
+  // aim for a crop around 400px tall so small game text lands at a good
+  // OCR size; clamp so big buffers aren't upscaled into a blur
   let s = scale || 3;
+  if (rect.h > 40) s = Math.round(400 / rect.h);
+  s = Math.max(2, Math.min(6, s));
   const maxDim = Math.max(rect.w, rect.h);
-  if (maxDim * s > 1400) s = Math.max(1, Math.floor(1400 / maxDim));
+  if (maxDim * s > 1600) s = Math.max(1, Math.floor(1600 / maxDim));
+  s = Math.max(1, s);
   const w = Math.max(8, Math.round((rect.w) * s));
   const h = Math.max(8, Math.round((rect.h) * s));
   const out = document.createElement('canvas');
   out.width = w; out.height = h;
   const ctx = out.getContext('2d', { willReadFrequently: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = false;
   ctx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, w, h);
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
@@ -79,8 +92,17 @@ export async function ocrRegion(canvas, rect, lang, onProgress) {
   const processed = preprocess(canvas, rect, 3);
   const wrk = await ensureWorker(lang, onProgress);
   const { data } = await wrk.recognize(processed);
+  // join lines, de-hyphenating words the game wrapped across lines
+  // ("auf-" + "geweckt" -> "aufgeweckt")
+  const lines = (data.text || '').replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  let text = '';
+  for (const line of lines) {
+    if (!text) { text = line; continue; }
+    if (/\p{L}-$/u.test(text)) text = text.slice(0, -1) + line;
+    else text += ' ' + line;
+  }
   return {
-    text: (data.text || '').replace(/\s+/g, ' ').trim(),
+    text: text.replace(/\s+/g, ' ').trim(),
     confidence: data.confidence || 0
   };
 }

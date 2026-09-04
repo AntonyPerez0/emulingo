@@ -298,7 +298,7 @@ export async function captureAndTranslate(force) {
     if (force) setStatus('No readable text - open a dialogue box, or set Zone: Manual.');
     return;
   }
-  if (result.confidence < 45) {
+  if (result.confidence < 40) {
     if (force) setStatus(`Uncertain read (${Math.round(result.confidence)}%) - try Zone: Manual.`);
     return;
   }

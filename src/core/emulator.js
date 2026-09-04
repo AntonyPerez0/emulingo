@@ -124,19 +124,45 @@ export function getGameCanvas() {
   return c || null;
 }
 
-export function snapshot(scale = 3) {
-  const src = getGameCanvas();
-  if (!src || src.width < 10) return null;
-  const w = src.width, h = src.height;
-  const out = document.createElement('canvas');
-  out.width = w; out.height = h;
-  const ctx = out.getContext('2d', { willReadFrequently: true });
+// True if every sampled pixel is fully transparent - i.e. the WebGL drawing
+// buffer was already cleared (happens when reading outside the render loop).
+function isCleared(canvas) {
   try {
-    ctx.drawImage(src, 0, 0, w, h, 0, 0, w, h);
-  } catch {
-    return null;
-  }
+    const ctx = canvas.getContext('2d');
+    const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let checked = 0;
+    const step = Math.max(4, ((d.length / 4 / 2048) | 0) * 4);
+    for (let i = 3; i < d.length; i += step) {
+      checked++;
+      if (d[i] !== 0) return false;
+    }
+    return checked > 0;
+  } catch { return false; }
+}
+
+function grabFrame(src) {
+  const out = document.createElement('canvas');
+  out.width = src.width; out.height = src.height;
+  const ctx = out.getContext('2d', { willReadFrequently: true });
+  try { ctx.drawImage(src, 0, 0); } catch { return null; }
   return out;
+}
+
+// Grab the current game frame. WebGL canvases without preserveDrawingBuffer
+// read back empty between frames, so if the first grab is cleared we retry
+// inside a requestAnimationFrame, where the last presented frame is still
+// in the buffer.
+export function snapshot() {
+  const src = getGameCanvas();
+  if (!src || src.width < 10 || src.height < 10) return Promise.resolve(null);
+  const first = grabFrame(src);
+  if (first && !isCleared(first)) return Promise.resolve(first);
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      const out = grabFrame(src);
+      resolve(out);
+    });
+  });
 }
 
 export function restartGame() {
@@ -164,7 +190,7 @@ export function isPlaying() {
   try {
     const e = window.EJS_emulator;
     if (!e) return false;
-    if (typeof e.playing === 'boolean') return e.playing;
+    if (e.playing === true) return true;
     return !!getGameCanvas();
   } catch { return false; }
 }

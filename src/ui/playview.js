@@ -76,6 +76,7 @@ function playViewHtml() {
       </div>
     </div>
     <aside class="play-side">
+      <div class="live-status" id="live-status"></div>
       <div class="panel current-line" id="current-line-panel"></div>
       <div class="panel" id="stats-mini-panel"></div>
       <div class="panel">
@@ -250,9 +251,17 @@ async function tickOcr() {
   try { await captureAndTranslate(false); } finally { ticking = false; }
 }
 
+function setStatus(msg) {
+  const el = document.getElementById('live-status');
+  if (el) el.textContent = msg || '';
+}
+
 export async function captureAndTranslate(force) {
-  const canvas = emulator.snapshot(3);
-  if (!canvas) return;
+  const canvas = await emulator.snapshot();
+  if (!canvas) {
+    if (force) setStatus('No game canvas - is the game running?');
+    return;
+  }
   const s = store.get('stableThreshold') || 2;
 
   let rect;
@@ -264,17 +273,28 @@ export async function captureAndTranslate(force) {
   if (!force && sig === lastFrameSig) return;
   lastFrameSig = sig;
 
+  if (force) setStatus('Reading screen…');
   let result;
   try {
-    result = await ocr.ocrRegion(canvas, rect, ocrLangFor(store.get('source')));
+    result = await ocr.ocrRegion(canvas, rect, ocrLangFor(store.get('source')), (m) => {
+      if (!m || !m.status) return;
+      setStatus(m.progress != null ? `${m.status} ${Math.round(m.progress * 100)}%` : m.status);
+    });
   } catch (e) {
+    setStatus('OCR failed: ' + (e.message || e));
     return;
   }
   updateFps();
 
   const text = (result.text || '').trim();
-  if (!text || text.length < 2) return;
-  if (result.confidence > 0 && result.confidence < 35) return;
+  if (!text || text.length < 2) {
+    if (force) setStatus('No text found - open a dialogue box, or set Zone: Manual.');
+    return;
+  }
+  if (result.confidence > 0 && result.confidence < 35) {
+    if (force) setStatus(`Uncertain read (${Math.round(result.confidence)}%) - try Zone: Manual.`);
+    return;
+  }
 
   if (lineEquals(text, lastStableText)) {
     stableCount++;
@@ -305,6 +325,7 @@ function ocrLangFor(code) {
 export async function processNewLine(text, confidence) {
   const { source, target, autoTts, autoAdd, keepHistory } = store.all();
   translating = true;
+  setStatus('Translating…');
   renderCurrentLine({ status: 'translating', original: text });
   try {
     let translation = '';
@@ -327,6 +348,7 @@ export async function processNewLine(text, confidence) {
       if (translation) dict.seedWordsFromLine(text, source, target, Math.max(3, store.get('minWordLen') || 3));
     } catch {}
 
+    setStatus('');
     renderCurrentLine(entry);
     renderHistory();
     if (autoTts && translation) tts.speak(translation, store.get('ttsLang') === 'auto' ? target : store.get('ttsLang'), store.get('rate') || 1);
@@ -339,6 +361,7 @@ export async function processNewLine(text, confidence) {
     }
   } finally {
     translating = false;
+    setStatus('');
   }
 }
 
@@ -573,4 +596,9 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('tabchange', (e) => {
   if (e.detail.tab === 'play' && emulator.currentRom()) document.body.classList.add('playing');
   else document.body.classList.remove('playing');
+});
+
+// apply scan-interval changes immediately
+store.subscribe((key) => {
+  if (key === 'ocrInterval' && ocrTimer && emulator.currentRom()) startOcrLoop();
 });

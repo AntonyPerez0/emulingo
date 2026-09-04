@@ -4,16 +4,19 @@ let worker = null;
 let workerPromise = null;
 let currentLang = null;
 
-async function ensureWorker(lang) {
+async function ensureWorker(lang, onProgress) {
   if (worker && currentLang === lang) return worker;
   if (workerPromise && currentLang === lang) return workerPromise;
   currentLang = lang;
   workerPromise = (async () => {
     if (worker) { await worker.terminate(); worker = null; }
     worker = await Tesseract.createWorker(lang, 1, {
-      logger: () => {},
+      logger: (m) => { if (onProgress) onProgress(m); },
       errorHandler: () => {}
     });
+    // dialogue boxes are one uniform block of text
+    const psm = (window.Tesseract && Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK) || '6';
+    await worker.setParameters({ tessedit_pageseg_mode: psm });
     return worker;
   })();
   return workerPromise;
@@ -23,9 +26,11 @@ export async function terminateOcr() {
   if (worker) { try { await worker.terminate(); } catch {} worker = null; workerPromise = null; currentLang = null; }
 }
 
-// Pre-process: crop, scale up, grayscale, contrast, binarize (Otsu threshold)
+// Pre-process: crop, scale up, grayscale, binarize (Otsu threshold)
 function preprocess(canvas, rect, scale) {
-  const s = scale || 3;
+  let s = scale || 3;
+  const maxDim = Math.max(rect.w, rect.h);
+  if (maxDim * s > 1400) s = Math.max(1, Math.floor(1400 / maxDim));
   const w = Math.max(8, Math.round((rect.w) * s));
   const h = Math.max(8, Math.round((rect.h) * s));
   const out = document.createElement('canvas');
@@ -70,9 +75,9 @@ function preprocess(canvas, rect, scale) {
 }
 
 // rect: {x, y, w, h} in canvas coordinates. lang: e.g. "deu", "eng"
-export async function ocrRegion(canvas, rect, lang) {
+export async function ocrRegion(canvas, rect, lang, onProgress) {
   const processed = preprocess(canvas, rect, 3);
-  const wrk = await ensureWorker(lang);
+  const wrk = await ensureWorker(lang, onProgress);
   const { data } = await wrk.recognize(processed);
   return {
     text: (data.text || '').replace(/\s+/g, ' ').trim(),
@@ -80,48 +85,58 @@ export async function ocrRegion(canvas, rect, lang) {
   };
 }
 
-// Find dark (text-like) rows in the top 60% of the frame to auto-locate dialog text.
+// Find the densest band of dark (text) rows anywhere on the frame - that is
+// where the dialog box is, wherever the emulator letterboxes the screen.
 export function detectTextRect(canvas) {
   const w = canvas.width, h = canvas.height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const img = ctx.getImageData(0, 0, w, h);
-  const d = img.data;
-  const rowThreshold = Math.max(6, Math.round(w * 0.06));
-  const rows = [];
-  for (let y = 0; y < Math.floor(h * 0.62); y++) {
-    let dark = 0;
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const lum = new Float32Array(w * h);
+  const darkCount = new Uint16Array(h);
+  const rowThreshold = Math.max(4, Math.round(w * 0.04));
+  for (let y = 0; y < h; y++) {
+    let c = 0;
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
-      if (lum < 90) dark++;
+      const l = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      lum[y * w + x] = l;
+      if (l < 90) c++;
     }
-    rows.push(dark >= rowThreshold);
+    darkCount[y] = c;
   }
-  // find contiguous dark band
-  let start = -1, end = -1;
-  for (let y = 0; y < rows.length; y++) {
-    if (rows[y]) { if (start === -1) start = y; end = y; }
-    else if (start !== -1 && y - end > 4) break;
+  // contiguous bands of text-y rows; pick the one with the most dark pixels
+  let best = null, cur = null;
+  const gap = Math.max(3, Math.round(h * 0.02));
+  for (let y = 0; y < h; y++) {
+    if (darkCount[y] >= rowThreshold) {
+      if (!cur) cur = { y0: y, y1: y, total: 0 };
+      cur.y1 = y; cur.total += darkCount[y];
+    } else if (cur && y - cur.y1 > gap) {
+      if (!best || cur.total > best.total) best = cur;
+      cur = null;
+    }
   }
-  if (start === -1) return { x: Math.round(w * 0.06), y: Math.round(h * 0.70), w: Math.round(w * 0.88), h: Math.round(h * 0.26) };
-  const pad = 2;
-  const y0 = Math.max(0, start - pad);
-  const y1 = Math.min(h, end + pad + 1);
-  // horizontal extent of dark pixels in the band
-  let minX = w, maxX = 0;
-  for (let y = y0; y < y1; y++) {
+  if (cur && (!best || cur.total > best.total)) best = cur;
+  if (!best) return { x: Math.round(w * 0.06), y: Math.round(h * 0.70), w: Math.round(w * 0.88), h: Math.round(h * 0.26) };
+  // horizontal extent of dark pixels within the band
+  let minX = w, maxX = -1;
+  for (let y = best.y0; y <= best.y1; y++) {
     for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
-      if (lum < 90) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
+      if (lum[y * w + x] < 90) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
     }
   }
   if (maxX <= minX) { minX = Math.round(w * 0.06); maxX = Math.round(w * 0.94); }
-  const padX = 3;
+  const pad = 2;
+  const x0 = Math.max(0, minX - pad);
+  const y0 = Math.max(0, best.y0 - pad);
+  const x1 = Math.min(w, maxX + pad + 1);
+  const y1 = Math.min(h, best.y1 + pad + 1);
+  // inset a little to skip the dialog-box border lines
+  const inset = Math.max(2, Math.round(Math.min(x1 - x0, y1 - y0) * 0.05));
   return {
-    x: Math.max(0, minX - padX),
-    y: y0,
-    w: Math.min(w - Math.max(0, minX - padX), (maxX - minX) + padX * 2),
-    h: y1 - y0
+    x: x0 + inset,
+    y: y0 + inset,
+    w: Math.max(8, x1 - x0 - inset * 2),
+    h: Math.max(8, y1 - y0 - inset * 2)
   };
 }

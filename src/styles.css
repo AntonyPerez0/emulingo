@@ -284,6 +284,9 @@ main { flex: 1; padding: 18px; max-width: 1400px; margin: 0 auto; width: 100%; }
 .kind-badge.line { border-color: #7c5cd6; color: #b9a3f0; }
 
 /* word lookup popup (live panel) */
+.live-status { font-size: 0.78rem; color: #e8c46a; padding: 2px 4px; }
+.live-status:empty { display: none; }
+body.playing .live-status { padding: 0 4px; }
 .word-pop {
   margin-top: 12px; padding: 12px;
   background: var(--bg2); border: 1px solid var(--primary-dark);

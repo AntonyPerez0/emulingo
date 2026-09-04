@@ -132,7 +132,7 @@ export function detectTextRects(canvas, max = 2) {
   while (cx1 > cx0 && colDark[cx1] >= h * 0.95) cx1--;
   if (cx1 - cx0 < 8) return [];
   const cw = cx1 - cx0 + 1;
-  const contrastThreshold = Math.max(6, Math.round(cw * 0.06));
+  const contrastThreshold = Math.max(6, Math.round(cw * 0.03));
   // per-row light/dark counts within content columns
   const rowLight = new Uint16Array(h), rowDark = new Uint16Array(h);
   for (let y = 0; y < h; y++) {
@@ -143,12 +143,15 @@ export function detectTextRects(canvas, max = 2) {
     }
     rowLight[y] = li; rowDark[y] = da;
   }
-  // bands of "contrast" rows: the box interior mixes white background with
-  // dark text/borders; pure background rows (black or cyan) have no mix
+  // bands of "contrast" rows that are LIGHT-dominant: box interiors mix
+  // white background with dark text/borders. Dark-dominant rows (the box
+  // borders, black letterbox) must NOT seed - otherwise the interior
+  // expansion walks from a border into the background and swallows the
+  // whole frame into one unusable band.
   const rawBands = [];
   let cur = null, miss = 0;
   for (let y = 0; y < h; y++) {
-    if (Math.min(rowLight[y], rowDark[y]) >= contrastThreshold) {
+    if (rowDark[y] >= contrastThreshold && rowLight[y] > rowDark[y]) {
       if (!cur) cur = { y0: y, y1: y };
       cur.y1 = y; miss = 0;
     } else if (cur) {
@@ -163,15 +166,23 @@ export function detectTextRects(canvas, max = 2) {
     while (boxy(b.y0 - 1)) b.y0--;
     while (boxy(b.y1 + 1)) b.y1++;
   }
-  // merge line gaps inside one box (small), never the gaps between boxes
-  const mergeGap = Math.max(4, Math.round(h * 0.035));
+  // after interior expansion, each box is already one band; only fuse
+  // bands that practically touch (a thin border must NOT re-join separate
+  // boxes, otherwise background+sprite bands swallow the dialog again)
+  const mergeGap = 2;
   const mergedBands = [];
   for (const b of rawBands) {
     const last = mergedBands[mergedBands.length - 1];
     if (last && b.y0 - last.y1 <= mergeGap) last.y1 = b.y1;
     else mergedBands.push({ ...b });
   }
-  const bands = mergedBands.filter((b) => b.y1 - b.y0 >= 4);
+  const bands = mergedBands.filter((b) => {
+    const bh = b.y1 - b.y0;
+    if (bh < 4) return false;
+    // a band expanded across most of the frame is a background + sprite,
+    // not a text box (real GB dialog boxes are ~33% of the screen)
+    return bh <= h * 0.42;
+  });
   if (!bands.length) return [];
   const picked = bands.slice(-max);
   const rects = [];

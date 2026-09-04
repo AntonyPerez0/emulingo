@@ -105,7 +105,15 @@ function bindPlayEvents(page) {
     input.value = '';
   });
 
-  page.querySelector('#btn-ocr-now').addEventListener('click', () => captureAndTranslate(true));
+  page.querySelector('#btn-ocr-now').addEventListener('click', async () => {
+    const ok = await captureAndTranslate(true);
+    if (!ok) {
+      // the typewriter effect may have been mid-letter - try once more
+      setStatus('Retrying once (text may still be typing)…');
+      await new Promise((r) => setTimeout(r, 1100));
+      await captureAndTranslate(true);
+    }
+  });
   page.querySelector('#btn-save-state').addEventListener('click', saveState);
   page.querySelector('#btn-load-state').addEventListener('click', loadState);
   page.querySelector('#btn-restart').addEventListener('click', () => emulator.restartGame());
@@ -271,7 +279,7 @@ export async function captureAndTranslate(force) {
   const canvas = await emulator.snapshot();
   if (!canvas) {
     if (force) setStatus('No game canvas - is the game running?');
-    return;
+    return false;
   }
   const s = store.get('stableThreshold') || 2;
 
@@ -282,7 +290,7 @@ export async function captureAndTranslate(force) {
 
   // frame signature to skip identical frames
   const sig = canvas.width + 'x' + canvas.height + ':' + rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';') + ':' + rects.map((r) => roughSignature(canvas, r)).join('|');
-  if (!force && sig === lastFrameSig) return;
+  if (!force && sig === lastFrameSig) return false;
   lastFrameSig = sig;
 
   if (force) setStatus('Reading screen…');
@@ -302,19 +310,19 @@ export async function captureAndTranslate(force) {
       return;
     }
     const clean = cleanOcrText(result.text);
-    if (clean && result.confidence >= 35) results.push({ text: clean, conf: result.confidence });
+    if (clean && result.confidence >= 42) results.push({ text: clean, conf: result.confidence });
   }
   updateFps();
 
   if (!results.length) {
     if (force) setStatus('No readable text - open a dialogue box, or set Zone: Manual.');
-    return;
+    return false;
   }
   const finalText = results.map((r) => r.text).join(' / ');
   const conf = Math.max(...results.map((r) => r.conf));
   if (conf < 40) {
-    if (force) setStatus(`Uncertain read (${Math.round(conf)}%) - try Zone: Manual.`);
-    return;
+    if (force) setStatus(`Uncertain read (${Math.round(conf)}%) - text may still be typing, try again.`);
+    return false;
   }
   if (lineEquals(finalText, lastStableText)) {
     stableCount++;
@@ -322,9 +330,10 @@ export async function captureAndTranslate(force) {
     stableCount = 1;
     lastStableText = finalText;
   }
-  if (stableCount < s && !force) return;
+  if (stableCount < s && !force) return false;
 
   await processNewLine(finalText, conf);
+  return true;
 }
 
 function roughSignature(canvas, rect) {

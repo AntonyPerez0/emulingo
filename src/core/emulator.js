@@ -15,6 +15,17 @@ export function currentRom() { return currentRomId; }
 export function getLastRomId() { return load('lastRomId', null); }
 export function setLastRomId(id) { save('lastRomId', id); }
 
+// Map our Settings "core" values to EmulatorJS core names.
+const CORE_ALIASES = { gb: 'gb', gbc: 'gb', gba: 'gba', nes: 'nes', snes: 'snes', md: 'segaMD', nds: 'nds' };
+
+// EmulatorJS cannot auto-detect the system from a blob URL (no extension),
+// so derive the core from the ROM's original file name.
+function detectCoreFromName(name) {
+  const ext = (String(name).split('.').pop() || '').toLowerCase();
+  const map = { gb: 'gb', gbc: 'gb', gba: 'gba', nes: 'nes', fds: 'nes', smc: 'snes', sfc: 'snes', md: 'segaMD', gen: 'segaMD', smd: 'segaMD', nds: 'nds', sms: 'segaMS', gg: 'segaGG', vb: 'vb', n64: 'n64', z64: 'n64' };
+  return map[ext] || '';
+}
+
 export async function loadRom(id, opts = {}) {
   currentRomId = id;
   setLastRomId(id);
@@ -22,19 +33,15 @@ export async function loadRom(id, opts = {}) {
   const container = document.getElementById('game');
   container.innerHTML = '';
 
-  const settings = {
-    ...(opts.fastBoot ? { fastForwardOnLoad: false } : {}),
-    startOnLoaded: true,
-    colorScheme: 'dark'
-  };
+  const name = romFileName(id) || 'game.gb';
+  const core = opts.core && opts.core !== 'auto' ? (CORE_ALIASES[opts.core] || opts.core) : detectCoreFromName(name);
 
   window.EJS_player = '#game';
-  window.EJS_core = opts.core || 'auto';
-  window.EJS_gameName = (romFileName(id) || 'game').replace(/\.[^.]+$/, '');
+  window.EJS_core = core || 'gb';
+  window.EJS_gameName = name.replace(/\.[^.]+$/, '');
   window.EJS_gameUrl = createObjectUrlFor(id);
-  window.EJS_pathtodata = EJS_BASE + 'data/';
+  window.EJS_pathtodata = EJS_BASE;
   window.EJS_startOnLoaded = true;
-  window.EJS_colorScheme = 'dark';
   window.EJS_Volume = 0.6;
   window.EJS_ready = () => { if (readyResolve) { readyResolve(); readyResolve = null; } };
 
@@ -155,6 +162,9 @@ export function pressButton(name) {
 
 export function isPlaying() {
   try {
-    return !!(window.EJS_emulator && window.EJS_emulator.playing);
+    const e = window.EJS_emulator;
+    if (!e) return false;
+    if (typeof e.playing === 'boolean') return e.playing;
+    return !!getGameCanvas();
   } catch { return false; }
 }

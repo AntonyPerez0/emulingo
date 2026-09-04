@@ -3,3 +3,5 @@ dist/
 *.log
 
 .openchamber/
+
+romtest.html

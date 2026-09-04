@@ -116,6 +116,15 @@ main { flex: 1; padding: 18px; max-width: 1400px; margin: 0 auto; width: 100%; }
   display: block;
   image-rendering: pixelated;
 }
+#game:empty { min-height: 220px; }
+#game:empty::before {
+  content: "Loading emulator… (cores download once, ~5 MB)";
+  display: block;
+  padding: 96px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
 .emulator-toolbar {
   display: flex; gap: 8px; align-items: center;

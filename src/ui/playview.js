@@ -18,8 +18,11 @@ let autoSaveTimer = null;
 let translating = false;
 let lastStableText = '';
 let lastConf = 0;
+let lastRegions = null;
 let lastProcessedText = '';
 let stableCount = 0;
+// per-region OCR memo: unchanged regions are not re-read every scan
+const regionMemo = new Map();
 let history = [];
 let zone = 'auto';
 let manualRect = null;
@@ -343,7 +346,7 @@ export async function captureAndTranslate(force) {
     det = { canvas: workCanvas, rects: [r] };
     detectedCount = 1;
   } else {
-    det = ocr.detectTextRects(canvas, 2, grid);
+    det = ocr.detectTextRects(canvas, 6, grid);
     detectedCount = det.rects.length;
   }
   const work = det.canvas;
@@ -361,9 +364,9 @@ export async function captureAndTranslate(force) {
     // this, static text can never reach the threshold and never translates)
     if (lastStableText && !lineEquals(lastStableText, lastProcessedText)) {
       stableCount = Math.min(stableCount + 1, s);
-      if (stableCount >= s && !translating) {
+      if (stableCount >= s && !translating && lastRegions) {
         lastProcessedText = lastStableText;
-        await processNewLine(lastStableText, lastConf);
+        await processNewLine(lastRegions, lastConf);
       }
     }
     return false;
@@ -375,38 +378,47 @@ export async function captureAndTranslate(force) {
   const results = [];
   let bestConf = 0;
   for (let i = 0; i < rects.length; i++) {
-    let result;
-    try {
-      result = await ocr.ocrRegion(work, rects[i], lang, (m) => {
-        if (!m || !m.status) return;
-        const p = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : '';
-        const tag = rects.length > 1 ? ` (${i + 1}/${rects.length})` : '';
-        setStatus(`${m.status}${p}${tag}`);
-      });
-    } catch (e) {
-      setStatus('OCR failed: ' + (e.message || e));
-      return false;
-    }
-    bestConf = Math.max(bestConf, result.confidence || 0);
-    const clean = cleanOcrText(result.text);
-    if (clean && result.confidence >= 42) {
-      // fix systematic OCR misreads against a real dictionary before the
-      // text reaches translation, dictionary seeding and flashcards -
-      // bounded so a hung download can never freeze the OCR loop
-      let corrected = clean;
-      if (store.get('spellCheck') !== false) {
-        try {
-          corrected = await withTimeout(
-            correctOcrText(clean, lang, (m) => setStatus(m.status, m.progress)),
-            4000,
-            clean
-          );
-        } catch {
-          setStatus('Spellcheck unavailable - continuing without correction');
-        }
+    const sig = roughSignature(work, rects[i]) + '|' + lang + '|' + rects[i].w + 'x' + rects[i].h;
+    let memo = regionMemo.get(sig);
+    if (!memo) {
+      let result;
+      try {
+        result = await ocr.ocrRegion(work, rects[i], lang, (m) => {
+          if (!m || !m.status) return;
+          const p = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : '';
+          const tag = rects.length > 1 ? ` (${i + 1}/${rects.length})` : '';
+          setStatus(`${m.status}${p}${tag}`);
+        });
+      } catch (e) {
+        setStatus('OCR failed: ' + (e.message || e));
+        return false;
       }
-      results.push({ text: corrected, conf: result.confidence });
+      const clean = cleanOcrText(result.text);
+      if (clean && result.confidence >= 42) {
+        // fix systematic OCR misreads against a real dictionary before the
+        // text reaches translation, dictionary seeding and flashcards -
+        // bounded so a hung download can never freeze the OCR loop
+        let corrected = clean;
+        if (store.get('spellCheck') !== false) {
+          try {
+            corrected = await withTimeout(
+              correctOcrText(clean, lang, (m) => setStatus(m.status, m.progress)),
+              4000,
+              clean
+            );
+          } catch {
+            setStatus('Spellcheck unavailable - continuing without correction');
+          }
+        }
+        memo = { text: corrected, conf: result.confidence };
+      } else {
+        memo = { text: null, conf: result.confidence }; // negative cache: junk region
+      }
+      regionMemo.set(sig, memo);
+      if (regionMemo.size > 80) regionMemo.delete(regionMemo.keys().next().value);
     }
+    bestConf = Math.max(bestConf, memo.conf);
+    if (memo.text) results.push({ text: memo.text, conf: memo.conf });
   }
   updateFps();
 
@@ -431,6 +443,7 @@ export async function captureAndTranslate(force) {
     stableCount = 1;
     lastStableText = finalText;
     lastConf = conf;
+    lastRegions = results;
   }
   if (stableCount < s && !force) {
     setStatus(`line found - confirming (${stableCount}/${s})…`);
@@ -438,7 +451,7 @@ export async function captureAndTranslate(force) {
   }
   lastProcessedText = finalText;
 
-  await processNewLine(finalText, conf);
+  await processNewLine(lastRegions || results, conf);
   return true;
 }
 
@@ -457,38 +470,50 @@ function ocrLangFor(code) {
   return map[code] || 'eng';
 }
 
-export async function processNewLine(text, confidence) {
+export async function processNewLine(regions, confidence) {
   const { source, target, autoTts, autoAdd, keepHistory } = store.all();
   translating = true;
   setStatus('Translating…');
-  renderCurrentLine({ status: 'translating', original: text });
+  // one capture entry with N text regions: each region is translated on its
+  // own (dialog, menu, HP box...), the joined strings feed history/flashcards
+  const joined = regions.map((r) => r.text).join(' / ');
+  const entry = {
+    original: joined,
+    translation: '',
+    regions: regions.map((r) => ({ original: r.text, translation: '', conf: Math.round(r.conf || 0) })),
+    time: Date.now(),
+    conf: Math.round(confidence || 0),
+    src: source, tgt: target,
+    status: 'translating'
+  };
+  renderCurrentLine(entry);
   try {
-    let translation = '';
-    try { translation = await translate(text, source, target); }
-    catch { translation = ''; }
-    const entry = {
-      original: text,
-      translation,
-      time: Date.now(),
-      conf: Math.round(confidence || 0),
-      src: source, tgt: target
-    };
+    await Promise.all(entry.regions.map(async (rg) => {
+      try { rg.translation = await translate(rg.original, source, target); }
+      catch { rg.translation = ''; }
+      renderCurrentLine(entry); // progressive: show each region as it lands
+    }));
+    entry.status = null;
+    entry.translation = entry.regions.map((r) => r.translation).filter(Boolean).join(' / ');
+
     history.unshift(entry);
     if (history.length > (keepHistory || 200)) history.pop();
     lsSave('history', history.slice(0, keepHistory || 200));
 
-    // dictionary: line + word seeds
+    // dictionary: line + word seeds per region
     try {
-      dict.addLine(text, translation, source, target);
-      if (translation) dict.seedWordsFromLine(text, source, target, Math.max(3, store.get('minWordLen') || 3));
+      for (const rg of entry.regions) {
+        dict.addLine(rg.original, rg.translation, source, target);
+        if (rg.translation) dict.seedWordsFromLine(rg.original, source, target, Math.max(3, store.get('minWordLen') || 3));
+      }
     } catch {}
 
     setStatus('');
     renderCurrentLine(entry);
     renderHistory();
-    if (autoTts && translation) tts.speak(translation, store.get('ttsLang') === 'auto' ? target : store.get('ttsLang'), store.get('rate') || 1);
-    if (autoAdd && translation) {
-      const card = srs.addCard(text, source, translation);
+    if (autoTts && entry.translation) tts.speak(entry.translation, store.get('ttsLang') === 'auto' ? target : store.get('ttsLang'), store.get('rate') || 1);
+    if (autoAdd && entry.translation) {
+      const card = srs.addCard(entry.original, source, entry.translation);
       if (card) {
         srs.logActivity(srs.todayKey(), 1);
         toast('Flashcard added to deck', 'ok', 1600);
@@ -504,11 +529,11 @@ function updateFps() {
   const now = performance.now();
   fpsTimes.push(now);
   fpsTimes = fpsTimes.filter((t) => now - t < 10000);
-    const el = document.getElementById('ocr-fps');
-    if (el && fpsTimes.length > 1) {
-      const span = (fpsTimes[fpsTimes.length - 1] - fpsTimes[0]) / 1000;
-      el.textContent = fpsTimes.length + ' OCR / ' + span.toFixed(0) + 's · build ' + __BUILD__;
-    }
+  const el = document.getElementById('ocr-fps');
+  if (el && fpsTimes.length > 1) {
+    const span = (fpsTimes[fpsTimes.length - 1] - fpsTimes[0]) / 1000;
+    el.textContent = fpsTimes.length + ' OCR / ' + span.toFixed(0) + 's · build ' + __BUILD__;
+  }
 }
 
 // ---- rendering ----
@@ -517,21 +542,29 @@ export function renderCurrentLine(entry) {
   if (!panel) return;
   if (entry) currentEntry = entry;
   if (wordPopup) wordPopup = null;
-  if (!currentEntry) {
+  const e = currentEntry;
+  if (!e) {
     panel.innerHTML = `<h3>Live translation</h3><p class="muted">Play the game - dialogue text will appear here automatically. Tap any word to look it up.</p>`;
     return;
   }
-  const e = currentEntry;
-  if (e.status === 'translating') {
-    panel.innerHTML = `<h3>Live translation</h3><div class="orig">${escapeHtml(e.original)}</div><div class="spinner"></div>`;
-    return;
-  }
   const tgtDir = detectDir(store.get('target'));
-  const origHtml = e.original.split(/\s+/).map((w) => `<span class="w" data-w="${escapeHtml(w)}">${escapeHtml(w)}</span>`).join(' ');
+  // regions: each detected text area gets its own original+translation row
+  const regions = e.regions && e.regions.length
+    ? e.regions
+    : [{ original: e.original, translation: e.translation, conf: e.conf }];
+  const translating = e.status === 'translating';
+  const regionHtml = regions.map((rg, idx) => {
+    const origHtml = rg.original.split(/\s+/).map((w) => `<span class="w" data-w="${escapeHtml(w)}">${escapeHtml(w)}</span>`).join(' ');
+    const trans = translating && !rg.translation ? '…' : (rg.translation || (translating ? '…' : '(translation failed)'));
+    return `
+      <div class="region">
+        <div class="orig">${origHtml}</div>
+        <div class="trans" dir="${tgtDir}">${escapeHtml(trans)}</div>
+      </div>`;
+  }).join('');
   panel.innerHTML = `
     <h3>Live translation</h3>
-    <div class="orig">${origHtml}</div>
-    <div class="trans" dir="${tgtDir}">${escapeHtml(e.translation || '(translation failed)')}</div>
+    ${regionHtml}
     <div class="line-actions">
       ${e.translation ? `<button class="btn small" data-act="tts">🔊 Speak</button>` : ''}
       <button class="btn small primary" data-act="card">+ Flashcard</button>

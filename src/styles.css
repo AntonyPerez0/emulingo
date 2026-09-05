@@ -287,6 +287,10 @@ main { flex: 1; padding: 18px; max-width: 1400px; margin: 0 auto; width: 100%; }
 .live-status { font-size: 0.78rem; color: #e8c46a; padding: 2px 4px; }
 .live-status:empty { display: none; }
 body.playing .live-status { padding: 0 4px; }
+.region { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.region:last-of-type { border-bottom: none; }
+.region .orig { font-size: 0.95rem; padding: 3px 5px; border-radius: 6px; color: var(--text); }
+.region .trans { color: var(--primary); font-size: 1.05rem; margin-top: 2px; }
 .status-pct { opacity: 0.75; }
 .status-bar {
   height: 4px; margin-top: 4px; border-radius: 2px; overflow: hidden;

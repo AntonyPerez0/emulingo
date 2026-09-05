@@ -101,12 +101,17 @@ export async function ocrRegion(canvas, rect, lang, onProgress) {
   };
 }
 
-// Locate dialog boxes. If a grid is provided, the frame is first downscaled
+// Locate text regions. If a grid is provided, the frame is first downscaled
 // to the core's native resolution (160x144 for GB) - recovering the crisp
 // pixel grid from the blurry GL upscale - and detection + cropping happen
 // there. Returns { canvas: analysisCanvas, rects } with rects in that
-// canvas' coordinates. Returns up to `max` rects, bottom-most first.
-export function detectTextRects(canvas, max = 2, grid = null) {
+// canvas' coordinates, sorted top-to-bottom. Three detector passes:
+// 1. light boxes with dark text (dialog, menus, HP plates, clock screens)
+// 2. tall narrow light columns (START menus run most of the screen height
+//    and are filtered out by the band height cap)
+// 3. dark boxes with light text (GBA battle message boxes)
+export function detectTextRects(canvas, max = 6, grid = null, dbg = null) {
+  if (dbg) dbg.passes = { light: [], menu: [], dark: [] }, dbg.merges = [];
   let work = canvas;
   if (grid && grid.nativeW) {
     const nc = document.createElement('canvas');
@@ -137,71 +142,143 @@ export function detectTextRects(canvas, max = 2, grid = null) {
   if (cx1 - cx0 < 8) return { canvas: work, rects: [] };
   const cw = cx1 - cx0 + 1;
   const contrastThreshold = Math.max(4, Math.round(cw * 0.03));
-  // per-row light/dark counts within content columns
-  const rowLight = new Uint16Array(h), rowDark = new Uint16Array(h);
+  // per-row light/dark counts within content columns. "darkish" (l < 125)
+  // catches anti-aliased GBA text that smooths to mid-gray at native
+  // resolution; strict dark (l < 90) stays for borders and letterbox trim.
+  const rowLight = new Uint16Array(h), rowDark = new Uint16Array(h), rowDarkish = new Uint16Array(h);
   for (let y = 0; y < h; y++) {
-    let li = 0, da = 0;
+    let li = 0, da = 0, dsh = 0;
     for (let x = cx0; x <= cx1; x++) {
       const l = lum[y * w + x];
-      if (l < 90) da++; else if (l > 150) li++;
+      if (l < 90) { da++; dsh++; } else if (l < 125) dsh++;
+      else if (l > 150) li++;
     }
-    rowLight[y] = li; rowDark[y] = da;
+    rowLight[y] = li; rowDark[y] = da; rowDarkish[y] = dsh;
   }
-  // bands of "contrast" rows that are LIGHT-dominant: box interiors mix
-  // white background with dark text/borders. Dark-dominant rows (the box
-  // borders, black letterbox) must NOT seed - otherwise the interior
-  // expansion walks from a border into the background and swallows the
-  // whole frame into one unusable band.
-  const rawBands = [];
-  let cur = null, miss = 0;
-  for (let y = 0; y < h; y++) {
-    if (rowDark[y] >= contrastThreshold && rowLight[y] > rowDark[y]) {
-      if (!cur) cur = { y0: y, y1: y };
-      cur.y1 = y; miss = 0;
-    } else if (cur) {
-      if (++miss > 5) { rawBands.push(cur); cur = null; }
-    }
-  }
-  if (cur) rawBands.push(cur);
-  // expand each seed band until a dark-dominant row (box border / black
-  // background) - text rows and white gap rows are all interior. On the
-  // native grid borders are ~90% dark vs ~25% for text rows, so this
-  // cleanly spans multi-line boxes without leaking into the background.
-  const boxy = (y) => y >= 0 && y < h && rowDark[y] < cw * 0.75;
-  for (const b of rawBands) {
-    while (boxy(b.y0 - 1)) b.y0--;
-    while (boxy(b.y1 + 1)) b.y1++;
-  }
-  // after interior expansion, each box is already one band; only fuse
-  // bands that practically touch (a thin border must NOT re-join separate
-  // boxes, otherwise background+sprite bands swallow the dialog again)
-  const mergeGap = 2;
-  const mergedBands = [];
-  for (const b of rawBands) {
-    const last = mergedBands[mergedBands.length - 1];
-    if (last && b.y0 - last.y1 <= mergeGap) last.y1 = b.y1;
-    else mergedBands.push({ ...b });
-  }
-  const bands = mergedBands.filter((b) => {
-    const bh = b.y1 - b.y0;
-    if (bh < 4) return false;
-    // a band expanded across most of the frame is a background + sprite,
-    // not a text box (real GB dialog boxes are ~33% of the screen)
-    return bh <= h * 0.42;
-  });
-  if (!bands.length) return { canvas: work, rects: [] };
-  const picked = bands.slice(-max);
-  const rects = [];
-  for (const b of picked) {
-    // horizontal extent of box pixels (light or dark) within the band
-    let minX = w, maxX = -1;
-    for (let y = b.y0; y <= b.y1; y++) {
+  // seed rows for light boxes: contain text (darkish, incl. anti-aliased
+  // gray) while the row is light vs STRICT dark and has real light content.
+  // Comparing light against darkish instead would let mid-tone backgrounds
+  // (purple map tiles, teal battle boxes) defeat every seed row.
+  const gapLimit = 10;
+  function bandExtent(y0, y1, minX, maxX) {
+    for (let y = y0; y <= y1; y++) {
       for (let x = cx0; x <= cx1; x++) {
         const l = lum[y * w + x];
-        if (l < 90 || l > 150) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
+        if (l <= 150) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
       }
     }
-    if (maxX <= minX) continue;
+    return [minX, maxX];
+  }
+  function borderContinues(y0, y1, xl, xr) {
+    // the band extent already includes the box borders - check the columns
+    // AT the edges: they must stay dark through the gap (border verticals),
+    // which is what distinguishes a real box from open sky
+    let rows = 0, hitL = 0, hitR = 0;
+    for (let y = y0; y < y1; y++) {
+      rows++;
+      for (let x = xl; x <= Math.min(xl + 2, xr); x++) if (lum[y * w + x] <= 140) { hitL++; break; }
+      for (let x = xr; x >= Math.max(xr - 2, xl); x--) if (lum[y * w + x] <= 140) { hitR++; break; }
+    }
+    return rows > 0 && hitL >= rows * 0.6 && hitR >= rows * 0.6;
+  }
+  function collectBands(seedFn, betweenFn) {
+    const seeds = [];
+    let cur = null;
+    for (let y = 0; y < h; y++) {
+      if (seedFn(y)) { if (!cur) cur = { y0: y, y1: y }; else cur.y1 = y; }
+      else if (cur) { seeds.push(cur); cur = null; }
+    }
+    if (cur) seeds.push(cur);
+    for (const b of seeds) [b.minX, b.maxX] = bandExtent(b.y0, b.y1, cx1 + 1, cx0 - 1);
+    const merged = [];
+    for (const b of seeds) {
+      const last = merged[merged.length - 1];
+      if (last) {
+        const gap = b.y0 - last.y1;
+        if (gap <= gapLimit) {
+          let interior = true;
+          for (let y = last.y1 + 1; y < b.y0; y++) if (!betweenFn(y)) { interior = false; break; }
+          const minX = Math.min(last.minX, b.minX), maxX = Math.max(last.maxX, b.maxX);
+          if (interior && borderContinues(last.y1 + 1, b.y0, minX, maxX)) {
+            last.y1 = b.y1;
+            last.minX = minX; last.maxX = maxX;
+            continue;
+          }
+        }
+      }
+      merged.push({ ...b });
+    }
+    return merged;
+  }
+  // keep normal bands; also keep TALL NARROW framed bands - START menus run
+  // most of the screen height and would fall to the height cap. A real menu
+  // box has two full-height dark border columns bounding a light interior;
+  // bright skies and bright maps have no such vertical border pair.
+  function menuFramed(b) {
+    const rows = b.y1 - b.y0 + 1;
+    const counts = new Uint16Array(w);
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = cx0; x <= cx1; x++) if (lum[y * w + x] <= 140) counts[x]++;
+    }
+    const borders = [];
+    for (let x = cx0; x <= cx1; x++) {
+      if (counts[x] >= rows * 0.55) borders.push(x);
+    }
+    const minW = w * 0.15, maxW = w * 0.55;
+    let best = null, bestScore = 0;
+    for (let i = 0; i < borders.length; i++) {
+      for (let j = i + 1; j < borders.length && borders[j] - borders[i] <= maxW; j++) {
+        const span = borders[j] - borders[i];
+        if (span < minW) continue;
+        // interior between the borders must be mostly light; the real menu
+        // pair scores highest (white fill) vs map/rock columns
+        let light = 0, total = 0;
+        for (let y = b.y0; y <= b.y1; y++) {
+          for (let x = borders[i] + 1; x < borders[j]; x++) {
+            total++;
+            if (lum[y * w + x] > 150) light++;
+          }
+        }
+        const score = light / total;
+        if (score >= 0.5 && score > bestScore) {
+          bestScore = score;
+          best = { x0: borders[i], x1: borders[j] };
+        }
+      }
+    }
+    return best;
+  }
+  function bandOk(b) {
+    const bh = b.y1 - b.y0;
+    if (bh < 4) return false;
+    if (bh <= h * 0.42) return true;
+    const frame = bh <= h * 0.95 ? menuFramed(b) : null;
+    if (frame) { b.menuX0 = frame.x0; b.menuX1 = frame.x1; return true; }
+    return false;
+  }
+  const lightBands = collectBands(
+    (y) => rowDarkish[y] >= contrastThreshold && rowLight[y] > rowDark[y] && rowLight[y] >= contrastThreshold,
+    (y) => rowLight[y] > rowDark[y]
+  ).filter(bandOk);
+  const rects = [];
+
+  // horizontal extent of box/text pixels for a band; dark=true finds the
+  // light text inside a dark box, dark=false finds box+text on light boxes.
+  // Menu bands (b.menuX0 set) are clamped to their border columns so the
+  // OCR crop contains the menu, not the surrounding map.
+  function bandRect(b, dark) {
+    let minX = dark ? cx0 : (b.menuX0 != null ? b.menuX0 : w);
+    let maxX = dark ? cx1 : (b.menuX0 != null ? b.menuX1 : -1);
+    if (b.menuX0 == null) {
+      for (let y = b.y0; y <= b.y1; y++) {
+        for (let x = cx0; x <= cx1; x++) {
+          const l = lum[y * w + x];
+          const hit = dark ? l > 150 : (l < 90 || l > 150);
+          if (hit) { if (x < minX) minX = x; if (x > maxX) maxX = x; }
+        }
+      }
+    }
+    if (maxX <= minX) return null;
     const pad = 2;
     const x0 = Math.max(cx0, minX - pad);
     const y0 = Math.max(0, b.y0 - pad);
@@ -210,14 +287,49 @@ export function detectTextRects(canvas, max = 2, grid = null) {
     // inset past the box border lines
     const insetY = Math.max(2, Math.round((y1 - y0) * 0.08));
     const insetX = Math.max(2, Math.round((x1 - x0) * 0.04));
-    rects.push({
+    return {
       x: x0 + insetX,
       y: y0 + insetY,
       w: Math.max(6, x1 - x0 - insetX * 2),
       h: Math.max(6, y1 - y0 - insetY * 2)
-    });
+    };
   }
-  return { canvas: work, rects };
+
+  // pass 1: light boxes with dark text, bottom-most first
+  for (const b of lightBands.slice(-max)) {
+    if (dbg) dbg.passes.light.push({ ...b });
+    const r = bandRect(b, false);
+    if (r) rects.push(r);
+  }
+
+  // pass 2: dark boxes with light text (GBA battle message boxes: navy /
+  // dark teal with white text). Seeds are dark-dominant (darkish catches
+  // teal backgrounds that sit above the strict dark threshold) and contain
+  // light text; merging requires dark interior rows between seeds.
+  const darkBands = collectBands(
+    (y) => rowLight[y] >= contrastThreshold && rowDarkish[y] > rowLight[y],
+    (y) => rowDarkish[y] > rowLight[y]
+  ).filter(bandOk);
+  for (const b of darkBands.slice(-2)) {
+    if (dbg) dbg.passes.dark.push({ ...b });
+    const r = bandRect(b, true);
+    if (r) rects.push(r);
+  }
+
+  // dedup overlapping rects (menu column vs band, light vs dark overlap)
+  const area = (r) => r.w * r.h;
+  const overlap = (a, b) => {
+    const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+    const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    return ix * iy;
+  };
+  const kept = [];
+  for (const r of rects.sort((a, b) => area(b) - area(a))) {
+    if (!kept.some((k) => overlap(k, r) > area(r) * 0.5)) kept.push(r);
+  }
+  // reading order: top-to-bottom, left-to-right
+  kept.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  return { canvas: work, rects: kept.slice(0, max) };
 }
 
 // temporary debug helper (used by romtest.html)

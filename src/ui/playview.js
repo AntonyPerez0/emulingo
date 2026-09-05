@@ -17,6 +17,8 @@ let ocrTimer = null;
 let autoSaveTimer = null;
 let translating = false;
 let lastStableText = '';
+let lastConf = 0;
+let lastProcessedText = '';
 let stableCount = 0;
 let history = [];
 let zone = 'auto';
@@ -58,7 +60,7 @@ function playViewHtml() {
           <button class="btn small" id="btn-load-state" title="Load full game state">📂 Load</button>
           <button class="btn small" id="btn-restart">Restart</button>
           <button class="btn small ghost" id="btn-zone">Zone: Auto</button>
-          <span class="muted small" id="ocr-fps"></span>
+          <span class="muted small" id="ocr-fps">build ${__BUILD__}</span>
           <button class="btn small danger" id="btn-quit-rom">Eject ROM</button>
         </div>
         <div class="zone-editor hidden" id="zone-editor">
@@ -353,7 +355,19 @@ export async function captureAndTranslate(force) {
 
   // frame signature to skip identical frames
   const sig = work.width + 'x' + work.height + ':' + rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';') + ':' + rects.map((r) => roughSignature(work, r)).join('|');
-  if (!force && sig === lastFrameSig) return false;
+  if (!force && sig === lastFrameSig) {
+    // frame unchanged since the previous scan - the pending line is still
+    // on screen, so this counts as another stability confirmation (without
+    // this, static text can never reach the threshold and never translates)
+    if (lastStableText && !lineEquals(lastStableText, lastProcessedText)) {
+      stableCount = Math.min(stableCount + 1, s);
+      if (stableCount >= s && !translating) {
+        lastProcessedText = lastStableText;
+        await processNewLine(lastStableText, lastConf);
+      }
+    }
+    return false;
+  }
   lastFrameSig = sig;
 
   if (force) setStatus('Reading screen…');
@@ -397,20 +411,18 @@ export async function captureAndTranslate(force) {
   updateFps();
 
   if (!results.length) {
-    if (force) {
-      if (detectedCount === 0) {
-        // nothing detected - only the default bottom-strip zone was read
-        setStatus('No dialog box found on screen (fallback zone)');
-      } else {
-        setStatus(`No readable text (regions: ${detectedCount}, best conf: ${Math.round(bestConf)}%)`);
-      }
-    }
+    // always surface why nothing was captured, even in auto mode - a silent
+    // return leaves the status frozen on the last OCR progress message
+    const why = detectedCount === 0
+      ? 'no dialog box found on screen'
+      : `no readable text (best confidence ${Math.round(bestConf)}%)`;
+    setStatus(why);
     return false;
   }
   const finalText = results.map((r) => r.text).join(' / ');
   const conf = Math.max(...results.map((r) => r.conf));
   if (conf < 40) {
-    if (force) setStatus(`Uncertain read ${Math.round(conf)}% (${rects.length} regions) - text may still be typing`);
+    setStatus(`uncertain read ${Math.round(conf)}% - text may still be typing`);
     return false;
   }
   if (lineEquals(finalText, lastStableText)) {
@@ -418,8 +430,13 @@ export async function captureAndTranslate(force) {
   } else {
     stableCount = 1;
     lastStableText = finalText;
+    lastConf = conf;
   }
-  if (stableCount < s && !force) return false;
+  if (stableCount < s && !force) {
+    setStatus(`line found - confirming (${stableCount}/${s})…`);
+    return false;
+  }
+  lastProcessedText = finalText;
 
   await processNewLine(finalText, conf);
   return true;
@@ -487,11 +504,11 @@ function updateFps() {
   const now = performance.now();
   fpsTimes.push(now);
   fpsTimes = fpsTimes.filter((t) => now - t < 10000);
-  const el = document.getElementById('ocr-fps');
-  if (el && fpsTimes.length > 1) {
-    const span = (fpsTimes[fpsTimes.length - 1] - fpsTimes[0]) / 1000;
-    el.textContent = fpsTimes.length + ' OCR / ' + span.toFixed(0) + 's';
-  }
+    const el = document.getElementById('ocr-fps');
+    if (el && fpsTimes.length > 1) {
+      const span = (fpsTimes[fpsTimes.length - 1] - fpsTimes[0]) / 1000;
+      el.textContent = fpsTimes.length + ' OCR / ' + span.toFixed(0) + 's · build ' + __BUILD__;
+    }
 }
 
 // ---- rendering ----

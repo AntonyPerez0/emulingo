@@ -57,7 +57,7 @@ export function mountSettingsView() {
           <label class="btn" style="text-align:center">Import backup<input type="file" id="import-backup" accept=".json" hidden></label>
           <button class="btn danger ghost" id="btn-wipe">Erase everything</button>
         </div>
-        <p class="muted small">Everything is stored locally in your browser. No account, no server.</p>
+        <p class="muted small">Everything is stored locally in your browser. No account, no server. Build ${__BUILD__}.</p>
       </div>
     </div>`;
 

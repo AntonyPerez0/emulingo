@@ -30,36 +30,56 @@ let nspellLoader = () => import(/* @vite-ignore */ NSPELL_URL);
 export function _setNspellLoader(fn) { nspellLoader = fn; }
 
 const spellers = new Map();
+const lastFail = new Map();
+
+// hard deadline per file - a stalled mobile connection must never hang the
+// OCR loop; 30s is generous even on slow links
+const cfg = { fetchTimeout: 30000, stallTimeout: 15000, retryBackoff: 15000 };
+export function _setTestConfig(overrides) { Object.assign(cfg, overrides); }
 
 // Fetch a text file while reporting fractional download progress (0..1).
 // Falls back to a single all-at-once callback when the response gives no
-// body stream or no content length.
+// body stream or no content length. Two watchdogs guard the loop: an abort
+// deadline for the whole fetch and a per-read stall timer, because some
+// platforms may not reject a hung stream on abort.
 async function fetchTextWithProgress(url, onFrac) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const total = parseInt(res.headers.get('content-length') || '0', 10);
-  if (!res.body || !res.body.getReader || !total) {
-    const text = await res.text();
-    onFrac(1);
+  const ctrl = new AbortController();
+  const abortTimer = setTimeout(() => ctrl.abort(), cfg.fetchTimeout);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const total = parseInt(res.headers.get('content-length') || '0', 10);
+    if (!res.body || !res.body.getReader || !total) {
+      const text = await res.text();
+      onFrac(1);
+      return text;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let loaded = 0, text = '';
+    for (;;) {
+      const chunk = await Promise.race([
+        reader.read(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('dictionary download stalled')), cfg.stallTimeout))
+      ]);
+      const { done, value } = chunk;
+      if (done) break;
+      loaded += value.length;
+      text += decoder.decode(value, { stream: true });
+      onFrac(Math.min(1, loaded / total));
+    }
+    text += decoder.decode();
     return text;
+  } finally {
+    clearTimeout(abortTimer);
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let loaded = 0, text = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    loaded += value.length;
-    text += decoder.decode(value, { stream: true });
-    onFrac(Math.min(1, loaded / total));
-  }
-  text += decoder.decode();
-  return text;
 }
 
 async function getSpeller(code, onStatus) {
   if (!DICTS[code]) return null;
   if (spellers.has(code)) return spellers.get(code);
+  // a recent failure (stall, offline, CDN down) -> skip silently for a while
+  if (Date.now() - (lastFail.get(code) || 0) < cfg.retryBackoff) return null;
   const p = (async () => {
     try {
       let blobs = null;
@@ -83,7 +103,10 @@ async function getSpeller(code, onStatus) {
       const nspell = mod.default || mod;
       return nspell(blobs.aff || '', blobs.dic);
     } catch {
-      return null; // offline / CDN down -> correction silently disabled
+      // offline / CDN down -> correction disabled for now, retry after backoff
+      lastFail.set(code, Date.now());
+      spellers.delete(code);
+      return null;
     }
   })();
   spellers.set(code, p);

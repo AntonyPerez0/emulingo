@@ -265,7 +265,23 @@ async function tickOcr() {
   if (ticking || translating || document.hidden) return;
   if (!emulator.isPlaying()) return;
   ticking = true;
-  try { await captureAndTranslate(false); } finally { ticking = false; }
+  try {
+    await captureAndTranslate(false);
+  } catch (e) {
+    setStatus('OCR error: ' + (e.message || e));
+  } finally {
+    ticking = false;
+  }
+}
+
+// resolve with `fallback` if `promise` takes longer than ms - the OCR loop
+// must never stall on a slow dictionary download or a hung speller
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms); })
+  ]).finally(() => clearTimeout(timer));
 }
 
 function setStatus(msg, progress = null) {
@@ -361,10 +377,19 @@ export async function captureAndTranslate(force) {
     const clean = cleanOcrText(result.text);
     if (clean && result.confidence >= 42) {
       // fix systematic OCR misreads against a real dictionary before the
-      // text reaches translation, dictionary seeding and flashcards
+      // text reaches translation, dictionary seeding and flashcards -
+      // bounded so a hung download can never freeze the OCR loop
       let corrected = clean;
       if (store.get('spellCheck') !== false) {
-        corrected = await correctOcrText(clean, lang, (m) => setStatus(m.status, m.progress));
+        try {
+          corrected = await withTimeout(
+            correctOcrText(clean, lang, (m) => setStatus(m.status, m.progress)),
+            4000,
+            clean
+          );
+        } catch {
+          setStatus('Spellcheck unavailable - continuing without correction');
+        }
       }
       results.push({ text: corrected, conf: result.confidence });
     }

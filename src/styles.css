@@ -287,6 +287,15 @@ main { flex: 1; padding: 18px; max-width: 1400px; margin: 0 auto; width: 100%; }
 .live-status { font-size: 0.78rem; color: #e8c46a; padding: 2px 4px; }
 .live-status:empty { display: none; }
 body.playing .live-status { padding: 0 4px; }
+.status-pct { opacity: 0.75; }
+.status-bar {
+  height: 4px; margin-top: 4px; border-radius: 2px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+}
+.status-bar-fill {
+  height: 100%; border-radius: 2px; background: var(--primary);
+  transition: width 0.2s ease-out;
+}
 .word-pop {
   margin-top: 12px; padding: 12px;
   background: var(--bg2); border: 1px solid var(--primary-dark);

@@ -3,7 +3,7 @@ import { load as lsLoad, save as lsSave } from '../core/localStorage.js';
 import { idbGet, idbSet } from '../core/idb.js';
 import * as emulator from '../core/emulator.js';
 import * as ocr from '../core/ocr.js';
-import { correctOcrText } from '../core/correct.js';
+import { correctOcrText, warmSpeller } from '../core/correct.js';
 import { translate } from '../core/translate.js';
 import * as tts from '../core/tts.js';
 import * as srs from '../core/srs.js';
@@ -177,6 +177,11 @@ async function startRom(id) {
   document.body.classList.add('playing');
   renderStatus('Loading emulator…');
   try {
+    // start the spellcheck dictionary download while the emulator boots so
+    // it is ready (with its progress bar) before the first correction
+    if (store.get('spellCheck') !== false) {
+      warmSpeller(ocrLangFor(store.get('source')), (m) => setStatus(m.status, m.progress));
+    }
     await emulator.loadRom(id, { core: store.get('core'), fastBoot: store.get('fastBoot') });
     renderStatus('Game running - OCR active');
     startOcrLoop();
@@ -263,9 +268,14 @@ async function tickOcr() {
   try { await captureAndTranslate(false); } finally { ticking = false; }
 }
 
-function setStatus(msg) {
+function setStatus(msg, progress = null) {
   const el = document.getElementById('live-status');
-  if (el) el.textContent = msg || '';
+  if (!el) return;
+  if (!msg) { el.innerHTML = ''; return; }
+  if (progress == null) { el.textContent = msg; return; }
+  const pct = Math.round(progress * 100);
+  el.innerHTML = `${escapeHtml(msg)} <span class="status-pct">${pct}%</span>` +
+    `<div class="status-bar"><div class="status-bar-fill" style="width:${pct}%"></div></div>`;
 }
 
 function cleanOcrText(raw) {
@@ -354,7 +364,7 @@ export async function captureAndTranslate(force) {
       // text reaches translation, dictionary seeding and flashcards
       let corrected = clean;
       if (store.get('spellCheck') !== false) {
-        corrected = await correctOcrText(clean, lang, setStatus);
+        corrected = await correctOcrText(clean, lang, (m) => setStatus(m.status, m.progress));
       }
       results.push({ text: corrected, conf: result.confidence });
     }

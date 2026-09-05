@@ -31,6 +31,32 @@ export function _setNspellLoader(fn) { nspellLoader = fn; }
 
 const spellers = new Map();
 
+// Fetch a text file while reporting fractional download progress (0..1).
+// Falls back to a single all-at-once callback when the response gives no
+// body stream or no content length.
+async function fetchTextWithProgress(url, onFrac) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const total = parseInt(res.headers.get('content-length') || '0', 10);
+  if (!res.body || !res.body.getReader || !total) {
+    const text = await res.text();
+    onFrac(1);
+    return text;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let loaded = 0, text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    loaded += value.length;
+    text += decoder.decode(value, { stream: true });
+    onFrac(Math.min(1, loaded / total));
+  }
+  text += decoder.decode();
+  return text;
+}
+
 async function getSpeller(code, onStatus) {
   if (!DICTS[code]) return null;
   if (spellers.has(code)) return spellers.get(code);
@@ -40,12 +66,16 @@ async function getSpeller(code, onStatus) {
       try { blobs = await idbGet('spelldict:' + code); } catch {}
       if (!blobs || !blobs.dic) {
         const [pkg] = DICTS[code];
-        if (onStatus) onStatus('downloading spellcheck dictionary (once, ~1 MB)');
         const base = `https://cdn.jsdelivr.net/npm/${pkg}/`;
-        const [dic, aff] = await Promise.all([
-          fetch(base + 'index.dic').then((r) => { if (!r.ok) throw new Error('dic HTTP ' + r.status); return r.text(); }),
-          fetch(base + 'index.aff').then((r) => { if (!r.ok) throw new Error('aff HTTP ' + r.status); return r.text(); })
-        ]);
+        const msg = 'downloading spellcheck dictionary (once, ~1 MB)';
+        // dic is ~98% of the bytes, aff the rest
+        const report = (which, frac) => {
+          if (!onStatus) return;
+          const overall = which === 'dic' ? frac * 0.98 : 0.98 + frac * 0.02;
+          onStatus({ status: msg, progress: Math.min(1, overall) });
+        };
+        const dic = await fetchTextWithProgress(base + 'index.dic', (f) => report('dic', f));
+        const aff = await fetchTextWithProgress(base + 'index.aff', (f) => report('aff', f));
         blobs = { dic, aff };
         try { await idbSet('spelldict:' + code, blobs); } catch {}
       }

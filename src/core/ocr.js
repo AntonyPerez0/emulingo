@@ -3,6 +3,13 @@
 let worker = null;
 let workerPromise = null;
 let currentLang = null;
+const DEFAULT_PSM = (globalThis.Tesseract && Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK) || '6';
+// second pass with a different segmentation mode rescues low-confidence
+// reads (PSM 4 = single variable-size column handles dialog boxes whose
+// text sits close to the border better than PSM 6)
+const RETRY_PSM = '4';
+const MIN_WORD_CONF = 30;   // words below this are noise (border artifacts)
+const RETRY_BELOW = 60;     // overall confidence that triggers the retry pass
 
 async function ensureWorker(lang, onProgress) {
   if (worker && currentLang === lang) return worker;
@@ -19,9 +26,8 @@ async function ensureWorker(lang, onProgress) {
     });
     // dialogue boxes are one uniform block of text; fake a print DPI and
     // keep common border-art characters out of the output
-    const psm = (window.Tesseract && Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK) || '6';
     await worker.setParameters({
-      tessedit_pageseg_mode: psm,
+      tessedit_pageseg_mode: DEFAULT_PSM,
       user_defined_dpi: '300',
       tessedit_char_blacklist: '_|~{}[]<>^°'
     });
@@ -85,19 +91,74 @@ function preprocess(canvas, rect, scale) {
 export async function ocrRegion(canvas, rect, lang, onProgress) {
   const processed = preprocess(canvas, rect, 3);
   const wrk = await ensureWorker(lang, onProgress);
-  const { data } = await wrk.recognize(processed);
+
+  // low-confidence words are pure noise (box borders, cursor arrows read as
+  // ":" or "/") - dropping them before translation keeps the English clean
+  function readOnce(psm) {
+    return wrk.setParameters({ tessedit_pageseg_mode: psm }).then(() =>
+      wrk.recognize(processed, {}, { text: true, blocks: true })
+    ).then(({ data }) => {
+      // collect words per line (v6+ nests them under blocks)
+      const lines = [];
+      let sawWords = false;
+      for (const b of data.blocks || []) {
+        for (const p of b.paragraphs || []) {
+          for (const l of p.lines || []) {
+            const words = (l.words || [])
+              .map((w) => ({ text: String(w.text || '').trim(), conf: w.confidence ?? 0 }))
+              .filter((w) => w.text);
+            if (words.length) { lines.push(words); sawWords = true; }
+          }
+        }
+      }
+      if (!sawWords) {
+        const conf = data.confidence || 0;
+        for (const line of (data.text || '').replace(/\r/g, '').split('\n')) {
+          const words = line.trim().split(/\s+/).filter(Boolean).map((t) => ({ text: t, conf }));
+          if (words.length) lines.push(words);
+        }
+      }
+      const kept = lines
+        .map((words) => words.filter((w) => w.conf >= MIN_WORD_CONF).map((w) => w.text))
+        .filter((words) => words.length);
+      // mean confidence over the words we actually kept
+      const confs = kept.length ? lines.flatMap((words) => words.filter((w) => w.conf >= MIN_WORD_CONF).map((w) => w.conf)) : [];
+      const conf = confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : (data.confidence || 0);
+      return { text: kept.join('\n'), conf };
+    });
+  }
+
+  // pass 1 with the default segmentation mode; a second pass with a
+  // different mode rescues stubborn low-confidence frames
+  let best = await readOnce(DEFAULT_PSM);
+  if (best.conf < RETRY_BELOW) {
+    try {
+      const retry = await readOnce(RETRY_PSM);
+      if (retry.text && retry.conf > best.conf) best = retry;
+    } catch {}
+  }
+  try { await wrk.setParameters({ tessedit_pageseg_mode: DEFAULT_PSM }); } catch {}
+
   // join lines, de-hyphenating words the game wrapped across lines
   // ("auf-" + "geweckt" -> "aufgeweckt")
-  const lines = (data.text || '').replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = best.text.split('\n').map((l) => l.trim()).filter(Boolean);
   let text = '';
   for (const line of lines) {
     if (!text) { text = line; continue; }
     if (/\p{L}-$/u.test(text)) text = text.slice(0, -1) + line;
     else text += ' ' + line;
   }
+  text = text.replace(/\s+/g, ' ').trim();
+  // pixel fonts read spaces as commas; real game text always has a space
+  // after sentence punctuation and real commas, so a glued comma is a
+  // space artifact (decimal numbers "1,50" are digit-digit and survive)
+  text = text
+    .replace(/([?.!…]),(?=\S)/gu, '$1 ')
+    .replace(/(\d),(?=\p{L})/gu, '$1 ')
+    .replace(/,(?=\S)/gu, ', ');
   return {
-    text: text.replace(/\s+/g, ' ').trim(),
-    confidence: data.confidence || 0
+    text,
+    confidence: best.conf
   };
 }
 

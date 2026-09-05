@@ -301,7 +301,11 @@ function setStatus(msg, progress = null) {
 
 function cleanOcrText(raw) {
   const clean = String(raw || '')
-    .replace(/[-_=~•·─═║╔╗╚╝╠╣╦╩╬▶»]{2,}/gu, ' ')
+    .replace(/[-_=~•·─═║╔╗╚╝╠╣╦╩╬▶»▼◄▲]{2,}/gu, ' ')
+    // stray OCR artifacts hug the line edges: the bouncing dialog arrow
+    // reads as ":" or "/", box borders as quote marks
+    .replace(/^[\s"'`/\\|•·:]+/u, '')
+    .replace(/[\s"'`/\\|]+$/u, '')
     .replace(/\s+/g, ' ')
     .trim();
   const letters = (clean.match(/\p{L}/gu) || []).length;

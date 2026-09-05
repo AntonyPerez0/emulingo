@@ -11,7 +11,7 @@ Emulingo is a web app that runs retro games (Game Boy / GBC / GBA and more) in y
 - 🎮 **Built-in emulator** (EmulatorJS): GB, GBC, GBA, NES, SNES, Genesis, NDS. Keyboard + gamepad supported.
 - 💾 **Game saves** - full save states (💾 Save / 📂 Load, auto-saved every 60 s and restored when you return to a game) plus battery-SRAM flushing so in-game saves (Pokémon "Save" menu) persist across sessions.
 - 🌍 **Any language pair** - 28 languages, cross-translate any direction (e.g. German game → English, or Spanish → French).
-- 🔍 **Live OCR translation** - automatically detects dialogue boxes on screen, reads the text and translates it in real time (Tesseract.js + MyMemory API).
+- 🔍 **Live OCR translation** - automatically detects dialogue boxes on screen, reads the text, spell-corrects OCR misreads against a real dictionary and translates it in real time (Tesseract.js + Hunspell/nspell + translation engine chain).
 - 📖 **Dictionary** - every word and sentence you encounter is recorded with its translation; searchable, with on-demand lookup for unseen words and one-tap speak/add-to-deck.
 - 🖱 **Tap-to-look-up** - tap any word in the live translation panel for an instant dictionary popup.
 - 🎧 **Text-to-speech** - every translation is pronounced with the Web Speech API (adjustable speed and voice).
@@ -70,10 +70,11 @@ Emulingo is designed to work well on phones and tablets:
 ## How the translation loop works
 
 1. Every ~1.2 s the game canvas is snapshotted (the emulator canvas is preserved).
-2. A detector finds dark text rows in the top 60% of the frame (dialogue boxes), or you can drag a custom region with **Zone: Manual**.
-3. The region is upscaled 3×, grayscaled and Otsu-binarized, then read by a Tesseract worker in the target ROM language.
+2. A detector finds dialogue boxes on the native pixel grid, or you can drag a custom region with **Zone: Manual**.
+3. The region is upscaled in two stages and grayscaled, then read by a Tesseract worker in the target ROM language.
 4. Identical frames are skipped; text must appear stable for N scans before translating (reduces noise).
-5. The line is translated via MyMemory (cached in localStorage), spoken via TTS, and optionally saved as a flashcard.
+5. OCR misreads are spell-corrected against a Hunspell dictionary for the game language (candidate generation + dictionary check; never rewrites a word unless a single unambiguous dictionary word fits). Dictionaries download once per language (~1 MB) and are cached in IndexedDB. Toggle in Settings → OCR → "Fix OCR misreads".
+6. The cleaned line is translated (Google translate endpoints first, MyMemory as fallback - all keyless; cached in localStorage), spoken via TTS, and optionally saved as a flashcard.
 
 ## Important notes
 
@@ -87,7 +88,8 @@ Emulingo is designed to work well on phones and tablets:
 - Vite + vanilla ES modules (no framework)
 - EmulatorJS (emulator core, loaded from CDN)
 - Tesseract.js (OCR, loaded from CDN)
-- MyMemory Translated API (translations)
+- Hunspell dictionaries + nspell (OCR spell-correction, loaded from CDN)
+- Google Translate public endpoints + MyMemory (translation chain, no API keys)
 - Web Speech API (TTS)
 - Service worker + PWA manifest
 

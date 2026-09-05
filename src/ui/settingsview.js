@@ -30,6 +30,7 @@ export function mountSettingsView() {
         ${settingRow('Scan interval', `<input type="range" id="set-interval" min="600" max="4000" step="100" value="${s.ocrInterval}"><span class="range-val">${(s.ocrInterval / 1000).toFixed(1)}s</span>`, 'Lower = faster detection, more CPU')}
         ${settingRow('Stability threshold', `<input type="range" id="set-stable" min="1" max="5" step="1" value="${s.stableThreshold}"><span class="range-val">${s.stableThreshold}× </span>`, 'How many matching scans before translating')}
         ${settingRow('Min word length', `<input type="range" id="set-minlen" min="1" max="8" step="1" value="${s.minWordLen}"><span class="range-val">${s.minWordLen}</span>`, 'Ignore shorter OCR words')}
+        ${settingRow('Fix OCR misreads', `<input type="checkbox" id="set-spellcheck" ${s.spellCheck ? 'checked' : ''}>`, 'Spell-correct OCR text against a real dictionary before translating (dictionary downloads once per game language)')}
         ${settingRow('History size', `<input type="range" id="set-history" min="20" max="500" step="10" value="${s.keepHistory}"><span class="range-val">${s.keepHistory}</span>`, 'Lines kept in Play history')}
       </div>
       <div class="panel">
@@ -83,6 +84,7 @@ export function mountSettingsView() {
   bindSelect('set-tts-lang', 'ttsLang');
   bindCheck('set-auto-add', 'autoAdd');
   bindCheck('set-auto-tts', 'autoTts');
+  bindCheck('set-spellcheck', 'spellCheck');
   bindRange('set-rate', 'rate', (v) => v + '×');
   bindRange('set-interval', 'ocrInterval', (v) => (v / 1000).toFixed(1) + 's');
   bindRange('set-stable', 'stableThreshold', (v) => v + '× ');

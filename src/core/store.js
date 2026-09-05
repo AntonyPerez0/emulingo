@@ -11,6 +11,7 @@ const DEFAULTS = {
   ocrInterval: 1200,
   stableThreshold: 2,
   minWordLen: 2,
+  spellCheck: true,
   autoTts: true,
   autoAdd: true,
   scale: 2,

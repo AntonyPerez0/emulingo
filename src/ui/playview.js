@@ -3,6 +3,7 @@ import { load as lsLoad, save as lsSave } from '../core/localStorage.js';
 import { idbGet, idbSet } from '../core/idb.js';
 import * as emulator from '../core/emulator.js';
 import * as ocr from '../core/ocr.js';
+import { correctOcrText } from '../core/correct.js';
 import { translate } from '../core/translate.js';
 import * as tts from '../core/tts.js';
 import * as srs from '../core/srs.js';
@@ -348,7 +349,15 @@ export async function captureAndTranslate(force) {
     }
     bestConf = Math.max(bestConf, result.confidence || 0);
     const clean = cleanOcrText(result.text);
-    if (clean && result.confidence >= 42) results.push({ text: clean, conf: result.confidence });
+    if (clean && result.confidence >= 42) {
+      // fix systematic OCR misreads against a real dictionary before the
+      // text reaches translation, dictionary seeding and flashcards
+      let corrected = clean;
+      if (store.get('spellCheck') !== false) {
+        corrected = await correctOcrText(clean, lang, setStatus);
+      }
+      results.push({ text: corrected, conf: result.confidence });
+    }
   }
   updateFps();
 

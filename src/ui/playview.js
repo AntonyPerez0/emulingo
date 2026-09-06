@@ -3,6 +3,7 @@ import { load as lsLoad, save as lsSave } from '../core/localStorage.js';
 import { idbGet, idbSet } from '../core/idb.js';
 import * as emulator from '../core/emulator.js';
 import * as ocr from '../core/ocr.js';
+import { ocrFrameNeural } from '../core/ocr-neural.js';
 import { correctOcrText, warmSpeller } from '../core/correct.js';
 import { translate } from '../core/translate.js';
 import * as tts from '../core/tts.js';
@@ -324,44 +325,8 @@ export async function captureAndTranslate(force) {
   const grid = snap.grid;
   const s = store.get('stableThreshold') || 2;
 
-  let det;
-  let detectedCount = 0;
-  if (zone === 'manual' && manualRect) {
-    let r = manualRect;
-    let workCanvas = canvas;
-    if (grid) {
-      // OCR on the crisp native grid (same as detectTextRects): downscale the
-      // content area once, then map the canvas-space rect into native coords
-      const nc = document.createElement('canvas');
-      nc.width = grid.nativeW; nc.height = grid.nativeH;
-      const nctx = nc.getContext('2d', { willReadFrequently: true });
-      nctx.imageSmoothingEnabled = true;
-      nctx.imageSmoothingQuality = 'high';
-      nctx.drawImage(canvas, grid.x0, grid.y0, grid.contentW, grid.contentH, 0, 0, grid.nativeW, grid.nativeH);
-      workCanvas = nc;
-      const nx = clamp(Math.round((r.x - grid.x0) / grid.scale), 0, grid.nativeW - 6);
-      const ny = clamp(Math.round((r.y - grid.y0) / grid.scale), 0, grid.nativeH - 6);
-      r = {
-        x: nx, y: ny,
-        w: clamp(Math.round(r.w / grid.scale), 6, grid.nativeW - nx),
-        h: clamp(Math.round(r.h / grid.scale), 6, grid.nativeH - ny)
-      };
-    }
-    det = { canvas: workCanvas, rects: [r] };
-    detectedCount = 1;
-  } else {
-    det = ocr.detectTextRects(canvas, 6, grid);
-    detectedCount = det.rects.length;
-  }
-  const work = det.canvas;
-  let rects = det.rects;
-  if (!rects.length) {
-    const W = work.width, H = work.height;
-    rects = [{ x: Math.round(W * 0.06), y: Math.round(H * 0.70), w: Math.round(W * 0.88), h: Math.round(H * 0.26) }];
-  }
-
-  // frame signature to skip identical frames
-  const sig = work.width + 'x' + work.height + ':' + rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';') + ':' + rects.map((r) => roughSignature(work, r)).join('|');
+  // frame signature to skip identical frames (shared by both engines)
+  const sig = canvas.width + 'x' + canvas.height + ':' + roughSignature(canvas, { x: 0, y: 0, w: canvas.width, h: canvas.height });
   if (!force && sig === lastFrameSig) {
     // frame unchanged since the previous scan - the pending line is still
     // on screen, so this counts as another stability confirmation (without
@@ -377,31 +342,21 @@ export async function captureAndTranslate(force) {
   }
   lastFrameSig = sig;
 
-  if (force) setStatus('Reading screen…');
-  const lang = ocrLangFor(store.get('source'));
-  const results = [];
+  let results = [];
   let bestConf = 0;
-  for (let i = 0; i < rects.length; i++) {
-    const sig = roughSignature(work, rects[i]) + '|' + lang + '|' + rects[i].w + 'x' + rects[i].h;
-    let memo = regionMemo.get(sig);
-    if (!memo) {
-      let result;
-      try {
-        result = await ocr.ocrRegion(work, rects[i], lang, (m) => {
-          if (!m || !m.status) return;
-          const p = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : '';
-          const tag = rects.length > 1 ? ` (${i + 1}/${rects.length})` : '';
-          setStatus(`${m.status}${p}${tag}`);
-        });
-      } catch (e) {
-        setStatus('OCR failed: ' + (e.message || e));
-        return false;
-      }
-      const clean = cleanOcrText(result.text);
-      if (clean && result.confidence >= 42) {
-        // fix systematic OCR misreads against a real dictionary before the
-        // text reaches translation, dictionary seeding and flashcards -
-        // bounded so a hung download can never freeze the OCR loop
+  let detectedCount = 0;
+
+  // engine 1 (default): PaddleOCR PP-OCRv5, fully on-device. Full-frame
+  // detection + recognition, no box pre-detection needed.
+  if (store.get('ocrEngine') !== 'tesseract') {
+    const regions = await ocrFrameNeural(canvas, setStatus);
+    if (regions) {
+      detectedCount = regions.length;
+      const lang = ocrLangFor(store.get('source'));
+      results = [];
+      for (const r of regions) {
+        const clean = cleanOcrText(r.text);
+        if (!clean || r.conf < 42) continue;
         let corrected = clean;
         if (store.get('spellCheck') !== false) {
           try {
@@ -410,19 +365,100 @@ export async function captureAndTranslate(force) {
               4000,
               clean
             );
-          } catch {
-            setStatus('Spellcheck unavailable - continuing without correction');
-          }
+          } catch {}
         }
-        memo = { text: corrected, conf: result.confidence };
-      } else {
-        memo = { text: null, conf: result.confidence }; // negative cache: junk region
+        results.push({ text: corrected, conf: r.conf });
       }
-      regionMemo.set(sig, memo);
-      if (regionMemo.size > 80) regionMemo.delete(regionMemo.keys().next().value);
+    } else {
+      // engine failed (offline first load, SDK error) - fall back this scan
+      setStatus('Neural OCR unavailable - falling back to Tesseract');
     }
-    bestConf = Math.max(bestConf, memo.conf);
-    if (memo.text) results.push({ text: memo.text, conf: memo.conf });
+  }
+
+  // engine 2: Tesseract on detected boxes
+  if (!results.length) {
+    results = [];
+    bestConf = 0;
+    let det;
+    if (zone === 'manual' && manualRect) {
+      let r = manualRect;
+      let workCanvas = canvas;
+      if (grid) {
+        // OCR on the crisp native grid (same as detectTextRects): downscale the
+        // content area once, then map the canvas-space rect into native coords
+        const nc = document.createElement('canvas');
+        nc.width = grid.nativeW; nc.height = grid.nativeH;
+        const nctx = nc.getContext('2d', { willReadFrequently: true });
+        nctx.imageSmoothingEnabled = true;
+        nctx.imageSmoothingQuality = 'high';
+        nctx.drawImage(canvas, grid.x0, grid.y0, grid.contentW, grid.contentH, 0, 0, grid.nativeW, grid.nativeH);
+        workCanvas = nc;
+        const nx = clamp(Math.round((r.x - grid.x0) / grid.scale), 0, grid.nativeW - 6);
+        const ny = clamp(Math.round((r.y - grid.y0) / grid.scale), 0, grid.nativeH - 6);
+        r = {
+          x: nx, y: ny,
+          w: clamp(Math.round(r.w / grid.scale), 6, grid.nativeW - nx),
+          h: clamp(Math.round(r.h / grid.scale), 6, grid.nativeH - ny)
+        };
+      }
+      det = { canvas: workCanvas, rects: [r] };
+      detectedCount = 1;
+    } else {
+      det = ocr.detectTextRects(canvas, 6, grid);
+      detectedCount = det.rects.length;
+    }
+    const work = det.canvas;
+    let rects = det.rects;
+    if (!rects.length) {
+      const W = work.width, H = work.height;
+      rects = [{ x: Math.round(W * 0.06), y: Math.round(H * 0.70), w: Math.round(W * 0.88), h: Math.round(H * 0.26) }];
+    }
+
+    if (force) setStatus('Reading screen…');
+    const lang = ocrLangFor(store.get('source'));
+    for (let i = 0; i < rects.length; i++) {
+      const rsig = roughSignature(work, rects[i]) + '|' + lang + '|' + rects[i].w + 'x' + rects[i].h;
+      let memo = regionMemo.get(rsig);
+      if (!memo) {
+        let result;
+        try {
+          result = await ocr.ocrRegion(work, rects[i], lang, (m) => {
+            if (!m || !m.status) return;
+            const p = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : '';
+            const tag = rects.length > 1 ? ` (${i + 1}/${rects.length})` : '';
+            setStatus(`${m.status}${p}${tag}`);
+          });
+        } catch (e) {
+          setStatus('OCR failed: ' + (e.message || e));
+          return false;
+        }
+        const clean = cleanOcrText(result.text);
+        if (clean && result.confidence >= 42) {
+          // fix systematic OCR misreads against a real dictionary before the
+          // text reaches translation, dictionary seeding and flashcards -
+          // bounded so a hung download can never freeze the OCR loop
+          let corrected = clean;
+          if (store.get('spellCheck') !== false) {
+            try {
+              corrected = await withTimeout(
+                correctOcrText(clean, lang, (m) => setStatus(m.status, m.progress)),
+                4000,
+                clean
+              );
+            } catch {
+              setStatus('Spellcheck unavailable - continuing without correction');
+            }
+          }
+          memo = { text: corrected, conf: result.confidence };
+        } else {
+          memo = { text: null, conf: result.confidence }; // negative cache: junk region
+        }
+        regionMemo.set(rsig, memo);
+        if (regionMemo.size > 80) regionMemo.delete(regionMemo.keys().next().value);
+      }
+      bestConf = Math.max(bestConf, memo.conf);
+      if (memo.text) results.push({ text: memo.text, conf: memo.conf });
+    }
   }
   updateFps();
 

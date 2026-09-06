@@ -12,6 +12,7 @@ const DEFAULTS = {
   stableThreshold: 2,
   minWordLen: 2,
   spellCheck: true,
+  ocrEngine: 'paddle',
   autoTts: false,
   autoAdd: true,
   scale: 2,

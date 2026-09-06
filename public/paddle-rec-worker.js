@@ -117,7 +117,6 @@ function lineTensor(bitmap, rect, band) {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(bitmap, rect.x + band.x0, rect.y + band.y0, cw, bw, 0, 0, w2, 48);
   const d = ctx.getImageData(0, 0, w2, 48).data;
-  const preview = c.transferToImageBitmap();
   const out = new Float32Array(3 * 48 * w2);
   const plane = 48 * w2;
   for (let y = 0; y < 48; y++) {
@@ -129,7 +128,7 @@ function lineTensor(bitmap, rect, band) {
       out[2 * plane + p] = (d[i] / 255 - 0.5) / 0.5;
     }
   }
-  return { tensor: new ort.Tensor('float32', out, [1, 3, 48, w2]), preview };
+  return { tensor: new ort.Tensor('float32', out, [1, 3, 48, w2]) };
 }
 
 function ctcDecode(data, dims) {
@@ -191,7 +190,7 @@ self.onmessage = async (e) => {
         x: rect.x, y: rect.y
       });
     }
-    self.postMessage({ id, ok: true, boxes: out, crops: dbgCrops });
+    self.postMessage({ id, ok: true, boxes: out });
   } catch (err) {
     self.postMessage({ id, ok: false, error: String((err && err.message) || err) });
   } finally {

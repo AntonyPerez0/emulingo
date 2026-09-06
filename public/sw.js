@@ -1,11 +1,16 @@
-const CACHE = 'emulingo-v1';
+const CACHE = 'emulingo-v2';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(clients.claim());
+  // drop every cache from previous versions so stale bundles never return
+  e.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names.filter((n) => n !== CACHE).map((n) => caches.delete(n)));
+    await clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (e) => {

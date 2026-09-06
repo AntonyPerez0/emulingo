@@ -1,90 +1,88 @@
-// Local neural OCR engine: PaddleOCR PP-OCRv5 latin recognition model
-// (~8 MB ONNX) running on-device inside a Web Worker, so inference never
-// blocks the emulator's main thread. Box detection + line splitting come
-// from our own band detector; the worker only runs recognition + CTC decode.
+// Local neural OCR engine: PaddleOCR PP-OCRv5 det + rec (latin, ~13 MB
+// ONNX) running on-device via onnxruntime-web WASM on the main thread.
+// Purpose-built scene-text models that read pixel game fonts far better
+// than Tesseract (verified 95-100% confidence on reference frames vs
+// 60-71%).
+//
+// NOTE: runs on the main thread - each scan blocks the UI for ~0.5-1.5s, so
+// the caller keeps the scan interval generous. (An off-thread version is
+// WIP; the SDK's own worker mode breaks when loaded from a CDN and a DIY
+// DBNet postprocess still needs tuning.)
 //
 // Fallback contract: every function resolves, never rejects - on any failure
 // it returns null so the caller can fall back to the Tesseract pipeline.
 
-import { repairSpacing } from './ocr.js';
+const SDK_URL = 'https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js@0.4.2/+esm';
 
-const WORKER_URL = new URL('paddle-rec-worker.js?nb=' + Date.now(), document.baseURI).href;
+let pipelinePromise = null;
 
-let worker = null;
-let initPromise = null;
-let seq = 0;
-const pending = new Map();
-
-function ensureWorker(onStatus) {
-  if (worker) return Promise.resolve();
-  if (initPromise) return initPromise;
-  if (onStatus) onStatus('loading local OCR model (~8 MB, once)');
-  initPromise = new Promise((resolve, reject) => {
-    let w;
-    try {
-      w = new Worker(WORKER_URL); // classic worker: ORT loads via importScripts
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    const id = ++seq;
-    const timer = setTimeout(() => fail('local OCR model init timed out'), 120000);
-    const fail = (msg) => {
-      clearTimeout(timer);
-      pending.delete(id);
-      w.terminate();
-      worker = null;
-      initPromise = null;
-      reject(new Error(msg));
-    };
-    pending.set(id, { isInit: true, resolve: () => { worker = w; resolve(); }, reject: (e) => fail(e.message || 'init failed') });
-    w.onmessage = (ev) => {
-      if (ev.data && ev.data.debug) { if (onStatus) onStatus(ev.data.debug); return; }
-      const { id: rid, ok, boxes, error } = ev.data || {};
-      const p = pending.get(rid);
-      if (onStatus) onStatus('ack id=' + rid + ' ok=' + ok + ' boxes=' + (boxes === undefined ? 'UNDEF' : boxes.length) + ' pending=' + (p ? 'yes' : 'NO') + (p ? ' was-init=' + (p.isInit === true) : ''));
-      if (!p) return;
-      pending.delete(rid);
-      ok ? p.resolve(boxes) : p.reject(new Error(error || 'worker error'));
-    };
-    w.onerror = () => fail('worker failed to load');
-    w.postMessage({ id, type: 'init' });
-  });
-  return initPromise;
-}
-
-function callWorker(payload, transfer, timeoutMs, label) {
-  return new Promise((resolve, reject) => {
-    const id = ++seq;
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error(label + ' timed out'));
-    }, timeoutMs);
-    pending.set(id, {
-      resolve: (v) => { clearTimeout(timer); resolve(v); },
-      reject: (e) => { clearTimeout(timer); reject(e); }
+function ensurePaddle(onStatus) {
+  if (pipelinePromise) return pipelinePromise;
+  pipelinePromise = (async () => {
+    const { PaddleOCR } = await import(/* @vite-ignore */ SDK_URL);
+    if (onStatus) onStatus('loading local OCR models (~13 MB, once)');
+    return PaddleOCR.create({
+      textDetectionModelName: 'PP-OCRv5_mobile_det',
+      textDetectionModelAsset: { url: new URL('models/det.tar', document.baseURI).href },
+      textRecognitionModelName: 'latin_PP-OCRv5_mobile_rec',
+      textRecognitionModelAsset: { url: new URL('models/rec.tar', document.baseURI).href },
+      ortOptions: {
+        backend: 'wasm',
+        wasmPaths: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/',
+        numThreads: 1,
+        simd: true
+      }
     });
-    worker.postMessage({ id, type: 'predict', ...payload }, transfer || []);
-  });
+  })();
+  pipelinePromise = pipelinePromise.catch((e) => { pipelinePromise = null; throw e; });
+  return pipelinePromise;
 }
 
-// Run neural recognition on the given box rects. Returns regions
-// [{text, conf}] in reading order (same shape the Tesseract path produces),
-// or null when the engine is unavailable/failed.
-export async function ocrFrameNeural(canvas, rects, onStatus, dbg = null) {
+// de-hyphenate lines the game wrapped ("TELEFON-" + "Symbol" -> "TELEFON-Symbol")
+function joinLines(a, b) {
+  if (a && /\p{L}-$/u.test(a)) return a.slice(0, -1) + b;
+  return a ? a + ' ' + b : b;
+}
+
+// Run the full neural pipeline on a frame. Returns regions [{text, conf}] in
+// reading order (same shape the Tesseract path produces), or null when the
+// engine is unavailable/failed.
+export async function ocrFrameNeural(canvas, onStatus) {
   try {
-    await withTimeout(ensureWorker(onStatus), 130000, 'local OCR model init');
-    if (onStatus) onStatus('worker ready, reading ' + rects.length + ' boxes…');
-    const bitmap = await createImageBitmap(canvas);
-    const boxes = await callWorker({ bitmap, rects, detLimit: 960 }, [bitmap], 30000, 'neural OCR');
-    if (dbg) dbg.boxes = boxes;
-    return boxes
-      .filter((b) => b.text)
-      .sort((a, b) => (a.y - b.y) || (a.x - b.x))
-      .slice(0, 6)
-      .map((b) => ({ text: repairSpacing(b.text), conf: b.conf }));
+    const paddle = await withTimeout(ensurePaddle(onStatus), 130000, 'local OCR model init');
+    const [result] = await withTimeout(paddle.predict(canvas, {
+      textDetLimitSideLen: 640,
+      textDetLimitType: 'max'
+    }), 30000, 'neural OCR');
+    const items = result.items || [];
+    // join per-line items into reading-order regions (det emits one item per
+    // text line; a dialog box is 1-3 consecutive lines)
+    const regions = [];
+    for (const it of items) {
+      const text = String(it.text || '').trim();
+      if (!text) continue;
+      const y = it.y || 0, h = it.h || 0;
+      const last = regions[regions.length - 1];
+      // merge consecutive det lines into one region while the vertical gap
+      // stays under ~a line height (a dialog box is 1-3 stacked lines)
+      const near = last && (y - last.y1) < Math.max(h, 24) * 0.9;
+      if (near) {
+        last.text = joinLines(last.text, text);
+        last.y1 = Math.max(last.y1, y + h);
+        last.score = Math.max(last.score, it.score || 0);
+      } else {
+        regions.push({
+          text,
+          score: it.score || 0,
+          x: it.x || 0, y, w: it.w || 0, h,
+          y1: y + h
+        });
+      }
+    }
+    return regions
+      .map((r) => ({ text: r.text, conf: Math.round((r.score || 0) * 100) }))
+      .filter((r) => r.text && r.conf >= 42);
   } catch (e) {
-    if (dbg) dbg.error = (e.message || String(e)) + (e.stack ? ' || ' + e.stack.split('\n').slice(0, 4).join(' ~ ') : '');
     return null;
   }
 }
@@ -98,5 +96,5 @@ function withTimeout(promise, ms, label) {
 }
 
 export function neuralEngineReady() {
-  return !!worker;
+  return !!pipelinePromise;
 }

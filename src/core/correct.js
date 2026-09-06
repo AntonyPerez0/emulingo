@@ -290,7 +290,7 @@ export async function correctOcrText(text, lang, onStatus) {
 // ("POKéMON" -> "POKBMON"/"POKEMON"/"POKeMON"). These are safe pattern
 // repairs, not dictionary guesses.
 const GAME_LEXICON = [
-  [/\bPOK[BEO0Éè]?(?=(MON|GEAR|DEX|COM|BALL|DOLL|CENTER)\b)/gu, 'POKé']
+  [/\bPOK[BEO0ÉÈēĒè]?(?=(MON|GEAR|DEX|COM|BALL|DOLL|CENTER)\b)/gu, 'POKé']
 ];
 
 export function applyGameLexicon(text) {

@@ -12,7 +12,7 @@ const DEFAULTS = {
   stableThreshold: 2,
   minWordLen: 2,
   spellCheck: true,
-  autoTts: true,
+  autoTts: false,
   autoAdd: true,
   scale: 2,
   platform: 'gb',
@@ -28,6 +28,18 @@ const touchTweak = (() => {
 })();
 
 const state = Object.assign({}, DEFAULTS, touchTweak, load('settings', {}));
+
+// one-time migration: auto-speak used to default to on, now it is off (the
+// Speak button and the Settings toggle remain). Existing installs still
+// carrying the old on-default get flipped once; afterwards the marker
+// guarantees explicit user choices are never touched again.
+if (!load('tts-default-migrated', false)) {
+  save('tts-default-migrated', true);
+  if (state.autoTts === true) {
+    state.autoTts = false;
+    save('settings', state);
+  }
+}
 
 const listeners = new Set();
 

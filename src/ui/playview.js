@@ -4,7 +4,7 @@ import { idbGet, idbSet } from '../core/idb.js';
 import * as emulator from '../core/emulator.js';
 import * as ocr from '../core/ocr.js';
 import { ocrFrameNeural } from '../core/ocr-neural.js';
-import { correctOcrText, warmSpeller } from '../core/correct.js';
+import { correctOcrText, warmSpeller, applyGameLexicon } from '../core/correct.js';
 import { translate } from '../core/translate.js';
 import * as tts from '../core/tts.js';
 import * as srs from '../core/srs.js';
@@ -301,7 +301,7 @@ function setStatus(msg, progress = null) {
 }
 
 function cleanOcrText(raw) {
-  const clean = String(raw || '')
+  const clean = applyGameLexicon(String(raw || ''))
     .replace(/[-_=~•·─═║╔╗╚╝╠╣╦╩╬▶»▼◄▲]{2,}/gu, ' ')
     // stray OCR artifacts hug the line edges: the bouncing dialog arrow
     // reads as ":" or "/", box borders as quote marks

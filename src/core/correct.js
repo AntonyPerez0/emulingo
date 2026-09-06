@@ -285,6 +285,20 @@ export async function correctOcrText(text, lang, onStatus) {
   return parts.join('');
 }
 
+// Game-font tokens the OCR engines systematically mangle. The GB font
+// renders "é" as a custom tile that both Tesseract and PaddleOCR misread
+// ("POKéMON" -> "POKBMON"/"POKEMON"/"POKeMON"). These are safe pattern
+// repairs, not dictionary guesses.
+const GAME_LEXICON = [
+  [/\bPOK[BEO0Éè]?(?=(MON|GEAR|DEX|COM|BALL|DOLL|CENTER)\b)/gu, 'POKé']
+];
+
+export function applyGameLexicon(text) {
+  let out = String(text || '');
+  for (const [re, to] of GAME_LEXICON) out = out.replace(re, to);
+  return out;
+}
+
 export async function warmSpeller(lang, onStatus) {
   const code = (lang || '').slice(0, 2);
   return getSpeller(code, onStatus);

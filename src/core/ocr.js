@@ -149,17 +149,22 @@ export async function ocrRegion(canvas, rect, lang, onProgress) {
     else text += ' ' + line;
   }
   text = text.replace(/\s+/g, ' ').trim();
-  // pixel fonts read spaces as commas; real game text always has a space
-  // after sentence punctuation and real commas, so a glued comma is a
-  // space artifact (decimal numbers "1,50" are digit-digit and survive)
-  text = text
-    .replace(/([?.!…]),(?=\S)/gu, '$1 ')
-    .replace(/(\d),(?=\p{L})/gu, '$1 ')
-    .replace(/,(?=\S)/gu, ', ');
   return {
-    text,
+    text: repairSpacing(text),
     confidence: best.conf
   };
+}
+
+// Pixel fonts read spaces as commas, and glued commas appear everywhere.
+// Real game text always has a space after sentence punctuation, real commas
+// and decimals like "1,50" are digit-digit, so a comma glued between letters
+// is a space artifact. Shared by both OCR engines.
+export function repairSpacing(text) {
+  return text
+    .replace(/([?.!…]),(?=\S)/gu, '$1 ')
+    .replace(/(\d),(?=\p{L})/gu, '$1 ')
+    .replace(/(\p{L}),(?=\p{L})/gu, '$1 ')
+    .replace(/,(?=\S)/gu, ', ');
 }
 
 // Locate text regions. If a grid is provided, the frame is first downscaled

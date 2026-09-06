@@ -7,6 +7,8 @@
 // Fallback contract: every function resolves, never rejects - on any failure
 // it returns null so the caller can fall back to the Tesseract pipeline.
 
+import { repairSpacing } from './ocr.js';
+
 const SDK_URL = 'https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js@0.4.2/+esm';
 const ORT_WASM = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/';
 
@@ -33,6 +35,10 @@ function ensurePaddle(onStatus) {
   // a failed load is retried on the next scan
   pipelinePromise = pipelinePromise.catch((e) => { pipelinePromise = null; throw e; });
   return pipelinePromise;
+}
+
+export function getPipeline(onStatus) {
+  return ensurePaddle(onStatus);
 }
 
 // group recognized text lines into reading-order blocks: lines whose
@@ -79,16 +85,24 @@ function groupLines(items) {
 // Run neural OCR on a full emulator frame. Returns an array of regions
 // [{text, conf}] in reading order (same shape the Tesseract path produces),
 // or null when the engine is unavailable/failed.
-export async function ocrFrameNeural(canvas, onStatus) {
+export async function ocrFrameNeural(canvas, onStatus, detLimit = 1600, dbg = null) {
   try {
     const paddle = await withTimeout(ensurePaddle(onStatus), 120000, 'local OCR model load');
+    // no downscaling: the emulator canvas already renders glyphs at the
+    // largest size the recognizer will see - shrinking to 640px loses the
+    // accent/diacritic detail that separates e.g. "é" from "B"
     const result = await withTimeout(paddle.predict(canvas, {
-      textDetLimitSideLen: 640,
+      textDetLimitSideLen: detLimit,
       textDetLimitType: 'max'
-    }), 20000, 'neural OCR');
-    const groups = groupLines(result.items || []);
-    return groups.map((g) => ({ text: g.text, conf: Math.round(g.score * 100) }));
+    }), 30000, 'neural OCR');
+    // predict resolves to an ARRAY of OcrResult (one per input image)
+    const ocr = Array.isArray(result) ? result[0] : result;
+    if (dbg) dbg.rawItems = (ocr && ocr.items) || [];
+    const groups = groupLines((ocr && ocr.items) || []);
+    if (dbg) dbg.groups = groups;
+    return groups.map((g) => ({ text: repairSpacing(g.text), conf: Math.round(g.score * 100) }));
   } catch (e) {
+    if (dbg) dbg.error = e.message || String(e);
     return null;
   }
 }

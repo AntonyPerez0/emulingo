@@ -346,14 +346,53 @@ export async function captureAndTranslate(force) {
   let bestConf = 0;
   let detectedCount = 0;
 
-  // engine 1 (default): PaddleOCR PP-OCRv5, fully on-device. Full-frame
-  // detection + recognition, no box pre-detection needed.
-  if (store.get('ocrEngine') !== 'tesseract') {
-    const regions = await ocrFrameNeural(canvas, setStatus);
+  // box detection (shared by both engines)
+  let det;
+  if (zone === 'manual' && manualRect) {
+    let r = manualRect;
+    let workCanvas = canvas;
+    if (grid) {
+      // OCR on the crisp native grid (same as detectTextRects): downscale the
+      // content area once, then map the canvas-space rect into native coords
+      const nc = document.createElement('canvas');
+      nc.width = grid.nativeW; nc.height = grid.nativeH;
+      const nctx = nc.getContext('2d', { willReadFrequently: true });
+      nctx.imageSmoothingEnabled = true;
+      nctx.imageSmoothingQuality = 'high';
+      nctx.drawImage(canvas, grid.x0, grid.y0, grid.contentW, grid.contentH, 0, 0, grid.nativeW, grid.nativeH);
+      workCanvas = nc;
+      const nx = clamp(Math.round((r.x - grid.x0) / grid.scale), 0, grid.nativeW - 6);
+      const ny = clamp(Math.round((r.y - grid.y0) / grid.scale), 0, grid.nativeH - 6);
+      r = {
+        x: nx, y: ny,
+        w: clamp(Math.round(r.w / grid.scale), 6, grid.nativeW - nx),
+        h: clamp(Math.round(r.h / grid.scale), 6, grid.nativeH - ny)
+      };
+    }
+    det = { canvas: workCanvas, rects: [r] };
+    detectedCount = 1;
+  } else {
+    det = ocr.detectTextRects(canvas, 6, grid);
+    detectedCount = det.rects.length;
+  }
+  const work = det.canvas;
+  let rects = det.rects;
+  if (!rects.length && store.get('ocrEngine') === 'tesseract') {
+    const W = work.width, H = work.height;
+    rects = [{ x: Math.round(W * 0.06), y: Math.round(H * 0.70), w: Math.round(W * 0.88), h: Math.round(H * 0.26) }];
+  }
+
+  const lang = ocrLangFor(store.get('source'));
+  if (force) setStatus('Reading screen…');
+
+  // engine 1 (default): PaddleOCR PP-OCRv5 rec, fully on-device in a worker.
+  // Boxes come from our own detector; the worker splits lines and runs the
+  // neural recognizer. Falls back to Tesseract on any failure.
+  let neuralFailed = false;
+  if (store.get('ocrEngine') !== 'tesseract' && rects.length) {
+    const dbg = {};
+    const regions = await ocrFrameNeural(work, rects, setStatus, dbg);
     if (regions) {
-      detectedCount = regions.length;
-      const lang = ocrLangFor(store.get('source'));
-      results = [];
       for (const r of regions) {
         const clean = cleanOcrText(r.text);
         if (!clean || r.conf < 42) continue;
@@ -368,54 +407,18 @@ export async function captureAndTranslate(force) {
           } catch {}
         }
         results.push({ text: corrected, conf: r.conf });
+        bestConf = Math.max(bestConf, r.conf);
       }
     } else {
-      // engine failed (offline first load, SDK error) - fall back this scan
-      setStatus('Neural OCR unavailable - falling back to Tesseract');
+      neuralFailed = true;
+      setStatus('Neural OCR unavailable (' + (dbg.error || 'error') + ') - falling back to Tesseract');
     }
   }
 
   // engine 2: Tesseract on detected boxes
-  if (!results.length) {
+  if ((!results.length || neuralFailed) && rects.length) {
     results = [];
     bestConf = 0;
-    let det;
-    if (zone === 'manual' && manualRect) {
-      let r = manualRect;
-      let workCanvas = canvas;
-      if (grid) {
-        // OCR on the crisp native grid (same as detectTextRects): downscale the
-        // content area once, then map the canvas-space rect into native coords
-        const nc = document.createElement('canvas');
-        nc.width = grid.nativeW; nc.height = grid.nativeH;
-        const nctx = nc.getContext('2d', { willReadFrequently: true });
-        nctx.imageSmoothingEnabled = true;
-        nctx.imageSmoothingQuality = 'high';
-        nctx.drawImage(canvas, grid.x0, grid.y0, grid.contentW, grid.contentH, 0, 0, grid.nativeW, grid.nativeH);
-        workCanvas = nc;
-        const nx = clamp(Math.round((r.x - grid.x0) / grid.scale), 0, grid.nativeW - 6);
-        const ny = clamp(Math.round((r.y - grid.y0) / grid.scale), 0, grid.nativeH - 6);
-        r = {
-          x: nx, y: ny,
-          w: clamp(Math.round(r.w / grid.scale), 6, grid.nativeW - nx),
-          h: clamp(Math.round(r.h / grid.scale), 6, grid.nativeH - ny)
-        };
-      }
-      det = { canvas: workCanvas, rects: [r] };
-      detectedCount = 1;
-    } else {
-      det = ocr.detectTextRects(canvas, 6, grid);
-      detectedCount = det.rects.length;
-    }
-    const work = det.canvas;
-    let rects = det.rects;
-    if (!rects.length) {
-      const W = work.width, H = work.height;
-      rects = [{ x: Math.round(W * 0.06), y: Math.round(H * 0.70), w: Math.round(W * 0.88), h: Math.round(H * 0.26) }];
-    }
-
-    if (force) setStatus('Reading screen…');
-    const lang = ocrLangFor(store.get('source'));
     for (let i = 0; i < rects.length; i++) {
       const rsig = roughSignature(work, rects[i]) + '|' + lang + '|' + rects[i].w + 'x' + rects[i].h;
       let memo = regionMemo.get(rsig);

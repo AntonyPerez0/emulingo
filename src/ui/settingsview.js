@@ -30,7 +30,7 @@ export function mountSettingsView() {
         ${settingRow('OCR engine', `<select id="set-ocr-engine">
             <option value="paddle" ${s.ocrEngine !== 'tesseract' ? 'selected' : ''}>Neural - PaddleOCR (local model)</option>
             <option value="tesseract" ${s.ocrEngine === 'tesseract' ? 'selected' : ''}>Tesseract (classic)</option>
-          </select>`, 'Neural reads pixel fonts far better; ~13 MB model downloads once, runs fully on-device')}
+          </select>`, 'Neural reads pixel fonts far better; ~8 MB model downloads once, runs fully on-device')}
         ${settingRow('Scan interval', `<input type="range" id="set-interval" min="600" max="4000" step="100" value="${s.ocrInterval}"><span class="range-val">${(s.ocrInterval / 1000).toFixed(1)}s</span>`, 'Lower = faster detection, more CPU')}
         ${settingRow('Stability threshold', `<input type="range" id="set-stable" min="1" max="5" step="1" value="${s.stableThreshold}"><span class="range-val">${s.stableThreshold}× </span>`, 'How many matching scans before translating')}
         ${settingRow('Min word length', `<input type="range" id="set-minlen" min="1" max="8" step="1" value="${s.minWordLen}"><span class="range-val">${s.minWordLen}</span>`, 'Ignore shorter OCR words')}

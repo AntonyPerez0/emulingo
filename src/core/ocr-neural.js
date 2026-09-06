@@ -1,108 +1,90 @@
-// Local neural OCR engine: PaddleOCR PP-OCRv5 mobile (det + rec) running
-// fully on-device via onnxruntime-web WASM. ~13 MB of models, downloaded
-// once from the app itself and cached by the browser. Purpose-built for
-// scene text - dramatically better than Tesseract on pixel game fonts
-// (verified: "WEDNESDAY"/"PM"/"1:57" at 99-100% confidence vs Tesseract 60-71%).
+// Local neural OCR engine: PaddleOCR PP-OCRv5 latin recognition model
+// (~8 MB ONNX) running on-device inside a Web Worker, so inference never
+// blocks the emulator's main thread. Box detection + line splitting come
+// from our own band detector; the worker only runs recognition + CTC decode.
 //
 // Fallback contract: every function resolves, never rejects - on any failure
 // it returns null so the caller can fall back to the Tesseract pipeline.
 
 import { repairSpacing } from './ocr.js';
 
-const SDK_URL = 'https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js@0.4.2/+esm';
-const ORT_WASM = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/';
+const WORKER_URL = new URL('paddle-rec-worker.js?nb=' + Date.now(), document.baseURI).href;
 
-let pipelinePromise = null;
+let worker = null;
+let initPromise = null;
+let seq = 0;
+const pending = new Map();
 
-function ensurePaddle(onStatus) {
-  if (pipelinePromise) return pipelinePromise;
-  pipelinePromise = (async () => {
-    const { PaddleOCR } = await import(/* @vite-ignore */ SDK_URL);
-    if (onStatus) onStatus('loading local OCR model (~13 MB, once)');
-    return PaddleOCR.create({
-      textDetectionModelName: 'PP-OCRv5_mobile_det',
-      textDetectionModelAsset: { url: new URL('models/det.tar', document.baseURI).href },
-      textRecognitionModelName: 'latin_PP-OCRv5_mobile_rec',
-      textRecognitionModelAsset: { url: new URL('models/rec.tar', document.baseURI).href },
-      ortOptions: {
-        backend: 'wasm',
-        wasmPaths: ORT_WASM,
-        numThreads: 1,
-        simd: true
-      }
-    });
-  })();
-  // a failed load is retried on the next scan
-  pipelinePromise = pipelinePromise.catch((e) => { pipelinePromise = null; throw e; });
-  return pipelinePromise;
-}
-
-export function getPipeline(onStatus) {
-  return ensurePaddle(onStatus);
-}
-
-// group recognized text lines into reading-order blocks: lines whose
-// vertical centers are close together and overlap horizontally form one
-// region (a dialog box, a menu entry...)
-function groupLines(items) {
-  const lines = items
-    .map((it) => {
-      const xs = it.poly.map((p) => p[0]);
-      const ys = it.poly.map((p) => p[1]);
-      return {
-        text: String(it.text || '').trim(),
-        score: it.score || 0,
-        x0: Math.min(...xs), x1: Math.max(...xs),
-        y0: Math.min(...ys), y1: Math.max(...ys)
-      };
-    })
-    .filter((l) => l.text)
-    .sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0));
-
-  const groups = [];
-  for (const l of lines) {
-    const last = groups[groups.length - 1];
-    if (last) {
-      const h = Math.max(last.y1 - last.y0, l.y1 - l.y0, 1);
-      const near = l.y0 - last.y0 < h * 1.4 && l.y0 > last.y0 - h * 0.5;
-      // stacked lines of one box overlap horizontally (menu items, wrapped
-      // dialog); side-by-side boxes at the same height must not merge
-      const overlapW = Math.min(last.x1, l.x1) - Math.max(last.x0, l.x0);
-      const overlaps = overlapW > 0.5 * Math.min(last.x1 - last.x0, l.x1 - l.x0);
-      if (near && overlaps) {
-        last.text += ' ' + l.text;
-        last.y1 = Math.max(last.y1, l.y1);
-        last.x0 = Math.min(last.x0, l.x0); last.x1 = Math.max(last.x1, l.x1);
-        last.score = Math.max(last.score, l.score);
-        continue;
-      }
+function ensureWorker(onStatus) {
+  if (worker) return Promise.resolve();
+  if (initPromise) return initPromise;
+  if (onStatus) onStatus('loading local OCR model (~8 MB, once)');
+  initPromise = new Promise((resolve, reject) => {
+    let w;
+    try {
+      w = new Worker(WORKER_URL); // classic worker: ORT loads via importScripts
+    } catch (e) {
+      reject(e);
+      return;
     }
-    groups.push({ ...l });
-  }
-  return groups;
+    const id = ++seq;
+    const timer = setTimeout(() => fail('local OCR model init timed out'), 120000);
+    const fail = (msg) => {
+      clearTimeout(timer);
+      pending.delete(id);
+      w.terminate();
+      worker = null;
+      initPromise = null;
+      reject(new Error(msg));
+    };
+    pending.set(id, { isInit: true, resolve: () => { worker = w; resolve(); }, reject: (e) => fail(e.message || 'init failed') });
+    w.onmessage = (ev) => {
+      if (ev.data && ev.data.debug) { if (onStatus) onStatus(ev.data.debug); return; }
+      const { id: rid, ok, boxes, error } = ev.data || {};
+      const p = pending.get(rid);
+      if (onStatus) onStatus('ack id=' + rid + ' ok=' + ok + ' boxes=' + (boxes === undefined ? 'UNDEF' : boxes.length) + ' pending=' + (p ? 'yes' : 'NO') + (p ? ' was-init=' + (p.isInit === true) : ''));
+      if (!p) return;
+      pending.delete(rid);
+      ok ? p.resolve(boxes) : p.reject(new Error(error || 'worker error'));
+    };
+    w.onerror = () => fail('worker failed to load');
+    w.postMessage({ id, type: 'init' });
+  });
+  return initPromise;
 }
 
-// Run neural OCR on a full emulator frame. Returns an array of regions
+function callWorker(payload, transfer, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    const id = ++seq;
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(label + ' timed out'));
+    }, timeoutMs);
+    pending.set(id, {
+      resolve: (v) => { clearTimeout(timer); resolve(v); },
+      reject: (e) => { clearTimeout(timer); reject(e); }
+    });
+    worker.postMessage({ id, type: 'predict', ...payload }, transfer || []);
+  });
+}
+
+// Run neural recognition on the given box rects. Returns regions
 // [{text, conf}] in reading order (same shape the Tesseract path produces),
 // or null when the engine is unavailable/failed.
-export async function ocrFrameNeural(canvas, onStatus, detLimit = 1600, dbg = null) {
+export async function ocrFrameNeural(canvas, rects, onStatus, dbg = null) {
   try {
-    const paddle = await withTimeout(ensurePaddle(onStatus), 120000, 'local OCR model load');
-    // no downscaling: the emulator canvas already renders glyphs at the
-    // largest size the recognizer will see - shrinking to 640px loses the
-    // accent/diacritic detail that separates e.g. "é" from "B"
-    const result = await withTimeout(paddle.predict(canvas, {
-      textDetLimitSideLen: detLimit,
-      textDetLimitType: 'max'
-    }), 30000, 'neural OCR');
-    // predict resolves to an ARRAY of OcrResult (one per input image)
-    const ocr = Array.isArray(result) ? result[0] : result;
-    if (dbg) dbg.rawItems = (ocr && ocr.items) || [];
-    const groups = groupLines((ocr && ocr.items) || []);
-    if (dbg) dbg.groups = groups;
-    return groups.map((g) => ({ text: repairSpacing(g.text), conf: Math.round(g.score * 100) }));
+    await withTimeout(ensureWorker(onStatus), 130000, 'local OCR model init');
+    if (onStatus) onStatus('worker ready, reading ' + rects.length + ' boxes…');
+    const bitmap = await createImageBitmap(canvas);
+    const boxes = await callWorker({ bitmap, rects, detLimit: 960 }, [bitmap], 30000, 'neural OCR');
+    if (dbg) dbg.boxes = boxes;
+    return boxes
+      .filter((b) => b.text)
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x))
+      .slice(0, 6)
+      .map((b) => ({ text: repairSpacing(b.text), conf: b.conf }));
   } catch (e) {
-    if (dbg) dbg.error = e.message || String(e);
+    if (dbg) dbg.error = (e.message || String(e)) + (e.stack ? ' || ' + e.stack.split('\n').slice(0, 4).join(' ~ ') : '');
     return null;
   }
 }
@@ -116,5 +98,5 @@ function withTimeout(promise, ms, label) {
 }
 
 export function neuralEngineReady() {
-  return !!pipelinePromise;
+  return !!worker;
 }

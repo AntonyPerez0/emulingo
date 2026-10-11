@@ -7,3 +7,7 @@ dist/
 romtest.html
 
 layouttest.html
+
+# OCR bench outputs / download cache
+bench/results/
+bench/.cache/

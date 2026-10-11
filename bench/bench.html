@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- the app resolves models/det.tar etc. against document.baseURI; serve the
+       bench page as if it were the app root -->
+  <base href="/" />
+  <title>Emulingo OCR bench</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #f6f6f4; --fg: #1c1c1e; --muted: #5c5c66; --panel: #ffffff; --line: #d4d4d8; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #18181b; --fg: #f4f4f5; --muted: #a1a1aa; --panel: #232327; --line: #3f3f46; } }
+    body { margin: 0; padding: 16px; font: 14px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 16px 0 6px; }
+    p { color: var(--muted); margin: 0 0 12px; max-width: 70ch; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    select, button { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); max-width: 100%; }
+    button { cursor: pointer; font-weight: 600; }
+    button:focus-visible, select:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+    .frames { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+    figure { margin: 0; }
+    figcaption { color: var(--muted); font-size: 12px; }
+    .frame { image-rendering: pixelated; border: 1px solid var(--line); max-width: 100%; }
+    .presented { width: 480px; image-rendering: auto; }
+    pre { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px; overflow: auto; max-height: 40vh; white-space: pre-wrap; }
+  </style>
+  <!-- same tag as index.html; bench/run.mjs serves it from node_modules -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script type="module" src="/bench/bench-page.js"></script>
+</head>
+<body>
+  <main id="app">
+    <h1>Emulingo OCR bench</h1>
+    <p>Synthetic Pokémon-style frames (original art) rendered at native resolution, presented like the emulator canvas and read by the selected OCR adapter. Headless runs: <code>npm run bench:ocr</code>.</p>
+  </main>
+</body>
+</html>

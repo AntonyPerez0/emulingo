@@ -1,0 +1,134 @@
+/* Deck view: overview (stats + 7-day chart) above the card list. */
+
+.deck__overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+@media (min-width: 900px) {
+  .deck__overview {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  /* Two by two next to the chart */
+  .deck__stats .lv-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: 100%;
+  }
+}
+
+/* ---- 7-day chart: bars are decoration; the table next to them carries the data ---- */
+
+.deck-week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.deck-week__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.deck-week .card__title {
+  font-size: var(--text-md);
+}
+
+.deck-week__summary {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  min-height: 112px;
+}
+
+.week-chart__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.week-chart__value {
+  min-height: 1.4em;
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The track's bottom border is the zero line: it survives forced colours. */
+.week-chart__track {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  min-height: 64px;
+  border-bottom: 2px solid var(--surface-3);
+}
+
+.week-chart__bar {
+  display: block;
+  width: min(28px, 70%);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--accent-solid);
+  opacity: 0.55;
+}
+
+.week-chart__col--today .week-chart__bar {
+  opacity: 1;
+}
+
+.week-chart__day {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.week-chart__col--today .week-chart__day {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+@media (max-width: 559.98px) {
+  .deck__overview {
+    margin-bottom: var(--space-6);
+  }
+
+  .week-chart {
+    min-height: 88px;
+  }
+
+  .week-chart__track {
+    min-height: 44px;
+  }
+}
+
+@media (forced-colors: active) {
+  .week-chart__track {
+    border-bottom-color: CanvasText;
+  }
+
+  .week-chart__bar {
+    forced-color-adjust: none;
+    background: CanvasText;
+    opacity: 1;
+  }
+
+  .week-chart__col--today .week-chart__bar {
+    background: Highlight;
+  }
+}

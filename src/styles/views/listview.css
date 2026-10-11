@@ -1,0 +1,335 @@
+/* Shared list pattern (Deck, Dictionary): stats strip, toolbar, rows, inline editor, paging. */
+
+/* ---- Stats strip: compact at every width so the list stays above the fold ---- */
+
+.lv-stats {
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: var(--space-2);
+}
+
+.lv-stat {
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.lv-stat .stat__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lv-stat .stat__label .icon {
+  color: var(--text-muted);
+}
+
+.lv-stat .stat__value {
+  font-size: var(--text-xl);
+}
+
+.lv-stat--accent .stat__value,
+.lv-stat--accent .stat__label .icon {
+  color: var(--accent);
+}
+
+.lv-stat--warning .stat__label .icon {
+  color: var(--warning);
+}
+
+/* Phones: one compact row, so the list starts on the first screen. */
+@media (max-width: 559.98px) {
+  .lv-stats {
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    gap: 6px;
+  }
+
+  .lv-stat {
+    padding: var(--space-2) 10px;
+    border-radius: var(--radius-md);
+  }
+
+  .lv-stat .stat__label {
+    font-size: var(--text-xs);
+    line-height: var(--leading-tight);
+  }
+
+  .lv-stat .stat__label .icon {
+    display: none;
+  }
+
+  .lv-stat .stat__value {
+    font-size: var(--text-lg);
+  }
+}
+
+/* ---- Section title + toolbar ---- */
+
+.lv__title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-lg);
+}
+
+.lv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.lv-search {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 0;
+  max-width: 420px;
+}
+
+.lv-search .input {
+  width: 100%;
+  padding-inline-end: var(--space-10);
+}
+
+/* Our own clear button replaces the WebKit one (Firefox has none). */
+.lv-search .input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.lv-search__clear {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: var(--space-1);
+  transform: translateY(-50%);
+}
+
+.lv-toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.lv-toolbar__end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.lv-count {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lv-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lv-sort__label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.lv-sort__select {
+  width: auto;
+  min-height: var(--control-sm);
+  padding-block: 0;
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 767.98px) {
+  .lv-toolbar {
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .lv-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  /* Filter, sort and count flow as separate items, so the count can share a line. */
+  .lv-toolbar__filters {
+    display: contents;
+  }
+
+  .lv-toolbar__end {
+    margin-inline-start: auto;
+  }
+}
+
+/* ---- Rows ---- */
+
+.lv__panel {
+  overflow: hidden;
+}
+
+.lv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.lv-row:last-child {
+  border-bottom: 0;
+}
+
+.lv-row:hover,
+.lv-row:focus-within {
+  background: var(--surface-2);
+}
+
+.lv-row__main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.lv-term {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  overflow-wrap: anywhere;
+}
+
+.lv-translation {
+  color: var(--text-muted);
+  line-height: var(--leading-snug);
+  overflow-wrap: anywhere;
+}
+
+.lv-translation--empty {
+  font-style: italic;
+}
+
+.lv-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--space-2);
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.lv-meta {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dot separators between plain-text meta items */
+.lv-meta + .lv-meta::before {
+  content: '·';
+  margin-inline-end: var(--space-2);
+}
+
+.lv-row__actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.lv-row__actions .btn--sm {
+  margin-inline: var(--space-1);
+}
+
+.lv-row--pending .lv-term {
+  font-weight: var(--weight-medium);
+}
+
+@media (max-width: 599.98px) {
+  .lv-row {
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-2) var(--space-2) var(--space-4);
+  }
+
+  .lv-row__actions {
+    align-self: stretch;
+    justify-content: flex-end;
+  }
+}
+
+/* ---- Inline editor ---- */
+
+.lv-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.lv-edit .input {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.lv-edit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.lv-row--editing,
+.lv-row--editing:hover {
+  background: var(--surface-2);
+}
+
+/* ---- No matches + paging ---- */
+
+.lv-nomatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--space-6);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.lv-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.lv-more__note {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (forced-colors: active) {
+  .lv-row:hover,
+  .lv-row:focus-within,
+  .lv-row--editing {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+}

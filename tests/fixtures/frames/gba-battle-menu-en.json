@@ -1,0 +1,168 @@
+{
+ "id": "gba-battle-menu-en",
+ "platform": "gba",
+ "lang": "en",
+ "frameKind": "battle-menu",
+ "partial": false,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [
+  {
+   "kind": "hud",
+   "lines": [
+    "POOCHYENA Lv2",
+    "HP"
+   ],
+   "text": "POOCHYENA Lv2 HP"
+  },
+  {
+   "kind": "hud",
+   "lines": [
+    "TORCHIC Lv5",
+    "HP",
+    "19/ 20"
+   ],
+   "text": "TORCHIC Lv5 HP 19/ 20"
+  },
+  {
+   "kind": "dialog",
+   "lines": [
+    "What will",
+    "TORCHIC do?"
+   ],
+   "text": "What will TORCHIC do?"
+  },
+  {
+   "kind": "menu",
+   "lines": [
+    "FIGHT BAG",
+    "POKéMON RUN"
+   ],
+   "text": "FIGHT BAG POKéMON RUN"
+  }
+ ],
+ "text": [
+  {
+   "role": "boxed",
+   "x": 20,
+   "y": 17,
+   "w": 63,
+   "h": 10,
+   "px": 426
+  },
+  {
+   "role": "boxed",
+   "x": 87,
+   "y": 17,
+   "w": 18,
+   "h": 10,
+   "px": 97
+  },
+  {
+   "role": "boxed",
+   "x": 133,
+   "y": 75,
+   "w": 49,
+   "h": 10,
+   "px": 318
+  },
+  {
+   "role": "boxed",
+   "x": 208,
+   "y": 75,
+   "w": 18,
+   "h": 10,
+   "px": 101
+  },
+  {
+   "role": "boxed",
+   "x": 196,
+   "y": 98,
+   "w": 16,
+   "h": 10,
+   "px": 94
+  },
+  {
+   "role": "boxed",
+   "x": 216,
+   "y": 98,
+   "w": 12,
+   "h": 10,
+   "px": 91
+  },
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 120,
+   "w": 24,
+   "h": 10,
+   "px": 156
+  },
+  {
+   "role": "dialog",
+   "x": 39,
+   "y": 120,
+   "w": 18,
+   "h": 10,
+   "px": 112
+  },
+  {
+   "role": "menu",
+   "x": 127,
+   "y": 121,
+   "w": 5,
+   "h": 10,
+   "px": 34
+  },
+  {
+   "role": "menu",
+   "x": 136,
+   "y": 121,
+   "w": 28,
+   "h": 10,
+   "px": 183
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 121,
+   "w": 18,
+   "h": 10,
+   "px": 145
+  },
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 136,
+   "w": 40,
+   "h": 10,
+   "px": 272
+  },
+  {
+   "role": "dialog",
+   "x": 55,
+   "y": 136,
+   "w": 18,
+   "h": 10,
+   "px": 102
+  },
+  {
+   "role": "menu",
+   "x": 136,
+   "y": 137,
+   "w": 42,
+   "h": 10,
+   "px": 310
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 137,
+   "w": 18,
+   "h": 10,
+   "px": 140
+  }
+ ]
+}

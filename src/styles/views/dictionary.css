@@ -1,0 +1,18 @@
+/* Dictionary view: compact stats strip above the searchable list. */
+
+.dictionary__stats {
+  margin-bottom: var(--space-8);
+}
+
+@media (min-width: 900px) {
+  .dictionary__stats .lv-stats {
+    grid-template-columns: repeat(3, minmax(0, 220px));
+  }
+}
+
+/* Pending rows: the visible Translate button sits with the icon actions. */
+.dictionary .lv-row--pending .lv-translation--empty {
+  color: var(--warning);
+  font-style: normal;
+  font-size: var(--text-sm);
+}

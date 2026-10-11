@@ -1,0 +1,275 @@
+/* Base: reset, typography, focus, utilities, motion and forced-colours rules. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Keep focused elements clear of the sticky header, the bottom tab bar and
+     any toasts on screen (toast.js sets --toast-top/--toast-bottom) (WCAG 2.4.11). */
+  scroll-padding-top: max(calc(var(--header-h) + var(--safe-top) + var(--space-4)), calc(var(--toast-top, 0px) + var(--space-2)));
+  scroll-padding-bottom: max(calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--space-4)), calc(var(--toast-bottom, 0px) + var(--space-2)));
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+/* While a modal dialog is open the page behind it must not scroll; the padding
+   stands in for the hidden scrollbar so nothing shifts sideways. */
+html.has-modal {
+  overflow: hidden;
+  padding-right: var(--scrollbar-comp, 0px);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+dl,
+dd,
+figure,
+blockquote {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--leading-tight);
+  font-weight: var(--weight-bold);
+  text-wrap: balance;
+}
+
+h1 { font-size: var(--text-2xl); letter-spacing: -0.01em; }
+h2 { font-size: var(--text-xl); font-weight: var(--weight-semibold); }
+h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+h4 { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+
+p {
+  text-wrap: pretty;
+}
+
+/* Headings and regions that receive programmatic focus (route changes, skip
+   link) are not controls. Controls with tabindex=-1 (menu items, roving
+   tabindex) still need their focus ring. */
+[tabindex='-1']:not(a, button, input, select, textarea, summary, [role]):focus {
+  outline: none;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+svg {
+  flex-shrink: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--space-4) 0;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+::selection {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+}
+
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- Focus: one high-contrast ring everywhere, never clipped ---- */
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- Utilities ---- */
+
+.visually-hidden:not(:focus):not(:active) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.skip-link {
+  position: fixed;
+  top: calc(var(--space-2) + var(--safe-top));
+  left: calc(var(--space-2) + var(--safe-left));
+  z-index: calc(var(--z-nav) + 10);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: none;
+}
+
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent); }
+.text-danger { color: var(--danger); }
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-lg { font-size: var(--text-lg); }
+.text-center { text-align: center; }
+.tabular { font-variant-numeric: tabular-nums; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+
+/* Vertical rhythm: .stack (16 px) or .stack-N for another step of the 4 px grid */
+.stack, .stack-1, .stack-2, .stack-3, .stack-4, .stack-6, .stack-8 { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-4)); }
+.stack-1 { --stack-gap: var(--space-1); }
+.stack-2 { --stack-gap: var(--space-2); }
+.stack-3 { --stack-gap: var(--space-3); }
+.stack-4 { --stack-gap: var(--space-4); }
+.stack-6 { --stack-gap: var(--space-6); }
+.stack-8 { --stack-gap: var(--space-8); }
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cluster-gap, var(--space-2));
+}
+
+.spacer { flex: 1 1 auto; }
+
+/* ---- Scrollbars: subtle, still visible ---- */
+
+.scroll-area {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+.scroll-area::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroll-area::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- Motion ---- */
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes scale-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes reveal { to { visibility: visible; opacity: 1; } }
+
+/*
+ * Reduced motion: shorten rather than remove animations, so delayed reveals
+ * (animation-delay) and fill-mode end states still apply.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Forced colours (Windows High Contrast) ---- */
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight;
+  }
+
+  [aria-current='page'],
+  [aria-pressed='true'] {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+}

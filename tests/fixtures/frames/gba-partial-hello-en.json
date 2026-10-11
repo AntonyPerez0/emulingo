@@ -1,0 +1,62 @@
+{
+ "id": "gba-partial-hello-en",
+ "platform": "gba",
+ "lang": "en",
+ "frameKind": "overworld-dialog",
+ "partial": true,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "Hello there! Glad to me"
+   ],
+   "text": "Hello there! Glad to me"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 118,
+   "w": 26,
+   "h": 10,
+   "px": 161
+  },
+  {
+   "role": "dialog",
+   "x": 41,
+   "y": 118,
+   "w": 32,
+   "h": 10,
+   "px": 179
+  },
+  {
+   "role": "dialog",
+   "x": 77,
+   "y": 118,
+   "w": 22,
+   "h": 10,
+   "px": 150
+  },
+  {
+   "role": "dialog",
+   "x": 103,
+   "y": 118,
+   "w": 12,
+   "h": 10,
+   "px": 66
+  },
+  {
+   "role": "dialog",
+   "x": 119,
+   "y": 121,
+   "w": 12,
+   "h": 7,
+   "px": 74
+  }
+ ]
+}

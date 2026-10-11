@@ -1,0 +1,148 @@
+{
+  "_comment": "Engine Lines (native px) modelled on real @paddleocr/paddleocr-js 0.4.2 output on ×4 nearest crops (scratchpad audit_ocr OCR-02/08/09/16/18). Containers are interiors as createContainerTracker reports them.",
+  "screens": [
+    {
+      "name": "GB dialog with the ▼ arrow read as a separate 'T' item",
+      "lang": "en",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "dialog:0,96,160,48", "kind": "dialog", "x": 3, "y": 99, "w": 154, "h": 42 },
+      "lines": [
+        { "text": "Wild PIDGEY", "score": 0.993, "box": { "x": 8, "y": 112, "w": 88, "h": 8 } },
+        { "text": "appeared!", "score": 0.987, "box": { "x": 8, "y": 128, "w": 72, "h": 8 } },
+        { "text": "T", "score": 0.904, "box": { "x": 144, "y": 129, "w": 7, "h": 6 } }
+      ],
+      "expect": [{ "kind": "dialog", "lines": ["Wild PIDGEY", "appeared!"], "text": "Wild PIDGEY appeared!" }]
+    },
+    {
+      "name": "GB dialog split into word boxes, arrow glued as 'i+'",
+      "lang": "en",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "dialog:0,96,160,48", "kind": "dialog", "x": 3, "y": 99, "w": 154, "h": 42 },
+      "lines": [
+        { "text": "Welcome", "score": 0.99, "box": { "x": 49.25, "y": 112, "w": 40.75, "h": 6.75 } },
+        { "text": " to the", "score": 0.97, "box": { "x": 86.75, "y": 112, "w": 41, "h": 6.75 } },
+        { "text": "world of Pokemoni+", "score": 0.81, "box": { "x": 8, "y": 128, "w": 140, "h": 7 } }
+      ],
+      "expect": [{ "kind": "dialog", "lines": ["Welcome to the", "world of Pokémon!"], "text": "Welcome to the world of Pokémon!" }]
+    },
+    {
+      "name": "GB battle menu with cursor, ligature and junk",
+      "lang": "en",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "menu:72,96,88,48", "kind": "menu", "x": 75, "y": 99, "w": 82, "h": 42 },
+      "lines": [
+        { "text": "† Figh t", "score": 0.82, "box": { "x": 74, "y": 112, "w": 46, "h": 8 } },
+        { "text": "PkMr", "score": 0.9, "box": { "x": 128, "y": 112, "w": 32, "h": 8 } },
+        { "text": "ITEM", "score": 0.97, "box": { "x": 80, "y": 128, "w": 32, "h": 8 } },
+        { "text": "RUN", "score": 0.97, "box": { "x": 128, "y": 128, "w": 24, "h": 8 } },
+        { "text": "7", "score": 0.252, "box": { "x": 74, "y": 128, "w": 6, "h": 8 } }
+      ],
+      "expect": [{ "kind": "menu", "lines": ["FIGHT", "PkMn", "ITEM", "RUN"] }]
+    },
+    {
+      "name": "GBA battle box: prompt plus FIGHT/BAG/POKéMON/RUN",
+      "lang": "en",
+      "frame": { "w": 240, "h": 160 },
+      "container": { "key": "battle:2,114,236,44", "kind": "battle", "x": 2, "y": 114, "w": 236, "h": 44 },
+      "lines": [
+        { "text": "What will", "score": 0.99, "box": { "x": 8, "y": 120, "w": 40, "h": 12 } },
+        { "text": "FIGHT", "score": 0.99, "box": { "x": 150, "y": 120, "w": 30, "h": 12 } },
+        { "text": "BAG", "score": 0.99, "box": { "x": 200, "y": 120, "w": 20, "h": 12 } },
+        { "text": "PIKACHU do?", "score": 0.98, "box": { "x": 8, "y": 136, "w": 62, "h": 12 } },
+        { "text": "POKéMON", "score": 0.97, "box": { "x": 150, "y": 136, "w": 42, "h": 12 } },
+        { "text": "RUN", "score": 0.99, "box": { "x": 200, "y": 136, "w": 20, "h": 12 } }
+      ],
+      "expect": [
+        { "kind": "dialog", "lines": ["What will", "PIKACHU do?"], "text": "What will PIKACHU do?" },
+        { "kind": "menu", "lines": ["FIGHT", "BAG", "POKéMON", "RUN"] }
+      ]
+    },
+    {
+      "name": "GB START menu with mixed-case misreads and map junk",
+      "lang": "en",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "menu:80,0,80,128", "kind": "menu", "x": 83, "y": 3, "w": 74, "h": 122 },
+      "lines": [
+        { "text": "▶POKéDEX", "score": 0.95, "box": { "x": 81, "y": 16, "w": 63, "h": 8 } },
+        { "text": "POKéMON", "score": 0.97, "box": { "x": 88, "y": 32, "w": 56, "h": 8 } },
+        { "text": "ITEM", "score": 0.98, "box": { "x": 88, "y": 48, "w": 32, "h": 8 } },
+        { "text": "RED", "score": 0.97, "box": { "x": 88, "y": 64, "w": 24, "h": 8 } },
+        { "text": "SAvE", "score": 0.91, "box": { "x": 88, "y": 80, "w": 32, "h": 8 } },
+        { "text": "OpTion", "score": 0.9, "box": { "x": 88, "y": 96, "w": 48, "h": 8 } },
+        { "text": "EXIT", "score": 0.98, "box": { "x": 88, "y": 112, "w": 32, "h": 8 } },
+        { "text": "L", "score": 0.305, "box": { "x": 140, "y": 60, "w": 5, "h": 7 } },
+        { "text": "-", "score": 0.36, "box": { "x": 120, "y": 90, "w": 6, "h": 3 } }
+      ],
+      "expect": [{ "kind": "menu", "lines": ["POKéDEX", "POKéMON", "ITEM", "RED", "SAVE", "OPTION", "EXIT"] }]
+    },
+    {
+      "name": "GBA HUD plate: name survives, level and HP do not",
+      "lang": "en",
+      "frame": { "w": 240, "h": 160 },
+      "container": { "key": "box:10,10,100,30", "kind": "box", "x": 10, "y": 10, "w": 100, "h": 30 },
+      "lines": [
+        { "text": "POOCHYENA", "score": 0.97, "box": { "x": 14, "y": 13, "w": 54, "h": 11 } },
+        { "text": "Lv2", "score": 0.93, "box": { "x": 86, "y": 13, "w": 16, "h": 11 } },
+        { "text": "HP", "score": 0.9, "box": { "x": 14, "y": 26, "w": 12, "h": 10 } },
+        { "text": "19/ 20", "score": 0.88, "box": { "x": 70, "y": 26, "w": 32, "h": 10 } }
+      ],
+      "expect": [{ "kind": "label", "lines": ["POOCHYENA"], "text": "POOCHYENA" }]
+    },
+    {
+      "name": "Overworld free read: dots, boxes and specks only",
+      "lang": "en",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "free", "kind": "free", "x": 0, "y": 0, "w": 160, "h": 144 },
+      "lines": [
+        { "text": "...", "score": 0.814, "box": { "x": 40, "y": 40, "w": 12, "h": 4 } },
+        { "text": ".", "score": 0.7, "box": { "x": 60, "y": 70, "w": 3, "h": 3 } },
+        { "text": "□", "score": 0.53, "box": { "x": 100, "y": 20, "w": 8, "h": 8 } },
+        { "text": "lll", "score": 0.66, "box": { "x": 120, "y": 100, "w": 12, "h": 8 } }
+      ],
+      "expect": []
+    },
+    {
+      "name": "Gen 1 battle read as one free frame (no box found)",
+      "lang": "en",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "free", "kind": "free", "x": 0, "y": 0, "w": 160, "h": 144 },
+      "lines": [
+        { "text": "PIDGEY", "score": 0.95, "box": { "x": 8, "y": 0, "w": 48, "h": 8 } },
+        { "text": ": L3", "score": 0.9, "box": { "x": 32, "y": 8, "w": 24, "h": 8 } },
+        { "text": "HP :", "score": 0.88, "box": { "x": 16, "y": 16, "w": 24, "h": 8 } },
+        { "text": "PIKAchU", "score": 0.93, "box": { "x": 80, "y": 56, "w": 56, "h": 8 } },
+        { "text": ": L5", "score": 0.9, "box": { "x": 112, "y": 64, "w": 24, "h": 8 } },
+        { "text": "192", "score": 0.85, "box": { "x": 96, "y": 80, "w": 24, "h": 8 } },
+        { "text": "Wild PIDGEY", "score": 0.99, "box": { "x": 8, "y": 112, "w": 88, "h": 8 } },
+        { "text": "appeared!", "score": 0.99, "box": { "x": 8, "y": 128, "w": 72, "h": 8 } }
+      ],
+      "expect": [
+        { "kind": "dialog", "text": "Wild PIDGEY appeared!" },
+        { "kind": "label", "text": "PIDGEY" },
+        { "kind": "label", "text": "PIKACHU" }
+      ]
+    },
+    {
+      "name": "Hyphen kept in compounds, removed in word wraps (OCR-15)",
+      "lang": "de",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "dialog:0,96,160,48", "kind": "dialog", "x": 3, "y": 99, "w": 154, "h": 42 },
+      "lines": [
+        { "text": "Der POKéDEX zeich-", "score": 0.97, "box": { "x": 8, "y": 112, "w": 144, "h": 8 } },
+        { "text": "net Daten auf.", "score": 0.98, "box": { "x": 8, "y": 128, "w": 112, "h": 8 } }
+      ],
+      "expect": [{ "kind": "dialog", "text": "Der POKéDEX zeichnet Daten auf." }]
+    },
+    {
+      "name": "Spanish ¡ read as 'i', '1' read inside a word",
+      "lang": "es",
+      "frame": { "w": 160, "h": 144 },
+      "container": { "key": "dialog:0,96,160,48", "kind": "dialog", "x": 3, "y": 99, "w": 154, "h": 42 },
+      "lines": [
+        { "text": "Hola! iBienvenido", "score": 0.9, "box": { "x": 8, "y": 112, "w": 136, "h": 8 } },
+        { "text": "a1 mundo de los", "score": 0.86, "box": { "x": 8, "y": 128, "w": 120, "h": 8 } }
+      ],
+      "expect": [{ "kind": "dialog", "lines": ["¡Hola! ¡Bienvenido", "al mundo de los"] }]
+    }
+  ]
+}

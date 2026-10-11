@@ -1,0 +1,223 @@
+/*
+ * Design tokens. Every colour pair used for text or control boundaries was
+ * checked against WCAG AA (see DESIGN 4b): text ≥ 4.5:1, control borders and
+ * state indicators ≥ 3:1. Components only ever reference these variables.
+ *
+ * Theme resolution: dark is the default. The light palette applies when the
+ * system prefers light and the user has not forced dark, or when theme.js sets
+ * data-theme="light". The light block is repeated on purpose so the right
+ * palette paints before any JavaScript runs.
+ */
+
+:root {
+  /* Type — 12/14/16/18/20/24/32 */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --leading-tight: 1.25;
+  --leading-snug: 1.4;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Space — 4 px grid */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Controls */
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+
+  /* Layout */
+  --header-h: 60px;
+  --bottom-nav-h: 0px;
+  --gutter: var(--space-8);
+  --content-max: 1200px;
+  --content-narrow: 720px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Stacking */
+  --z-sticky: 50;
+  --z-header: 100;
+  --z-nav: 110;
+  --z-popover: 200;
+  --z-toast: 300;
+
+  /* ---- Dark palette (default) ---- */
+  color-scheme: dark;
+  --bg: #0b0f17;
+  --surface: #121826;
+  --surface-2: #182032;
+  --surface-3: #1f2940;
+  --surface-hover: #2a3550;
+  --border: #263049;
+  --border-control: #6b7a99;
+  --text: #e8edf6;
+  --text-muted: #a3aec4;
+  --accent: #4ade80;
+  --accent-solid: #22c55e;
+  --accent-solid-hover: #4ade80;
+  --on-accent: #052e16;
+  --accent-soft-bg: #0f2a1b;
+  --accent-soft-fg: #86efac;
+  --danger: #fca5a5;
+  --danger-solid: #dc2626;
+  --danger-solid-hover: #b91c1c;
+  --on-danger: #ffffff;
+  --danger-soft-bg: #3b1219;
+  --danger-soft-fg: #fca5a5;
+  --warning: #fbbf24;
+  --warning-soft-bg: #2e2206;
+  --warning-soft-fg: #fbbf24;
+  --info: #7dd3fc;
+  --info-soft-bg: #0c2a3d;
+  --info-soft-fg: #7dd3fc;
+  --neutral-soft-bg: #1f2940;
+  --neutral-soft-fg: #c3cbdb;
+  --focus: #93c5fd;
+  --overlay: rgb(3 6 12 / 0.66);
+  --skeleton: #1f2940;
+  --skeleton-shine: #2a3550;
+  --scrollbar: #33405e;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-3: 0 24px 48px rgb(0 0 0 / 0.45);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a3aec4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --surface-2: #eef2f7;
+    --surface-3: #e5eaf1;
+    --surface-hover: #dfe5ee;
+    --border: #e2e8f0;
+    --border-control: #64748b;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --accent: #15803d;
+    --accent-solid: #15803d;
+    --accent-solid-hover: #166534;
+    --on-accent: #ffffff;
+    --accent-soft-bg: #dcfce7;
+    --accent-soft-fg: #166534;
+    --danger: #b91c1c;
+    --danger-solid: #b91c1c;
+    --danger-solid-hover: #991b1b;
+    --on-danger: #ffffff;
+    --danger-soft-bg: #fee2e2;
+    --danger-soft-fg: #991b1b;
+    --warning: #92400e;
+    --warning-soft-bg: #fef3c7;
+    --warning-soft-fg: #92400e;
+    --info: #0369a1;
+    --info-soft-bg: #e0f2fe;
+    --info-soft-fg: #075985;
+    --neutral-soft-bg: #e2e8f0;
+    --neutral-soft-fg: #334155;
+    --focus: #2563eb;
+    --overlay: rgb(15 23 42 / 0.5);
+    --skeleton: #e5eaf1;
+    --skeleton-shine: #f1f4f8;
+    --scrollbar: #c3cbd8;
+    --shadow-1: 0 1px 2px rgb(15 23 42 / 0.06);
+    --shadow-2: 0 8px 24px rgb(15 23 42 / 0.1);
+    --shadow-3: 0 24px 48px rgb(15 23 42 / 0.16);
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef2f7;
+  --surface-3: #e5eaf1;
+  --surface-hover: #dfe5ee;
+  --border: #e2e8f0;
+  --border-control: #64748b;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --accent: #15803d;
+  --accent-solid: #15803d;
+  --accent-solid-hover: #166534;
+  --on-accent: #ffffff;
+  --accent-soft-bg: #dcfce7;
+  --accent-soft-fg: #166534;
+  --danger: #b91c1c;
+  --danger-solid: #b91c1c;
+  --danger-solid-hover: #991b1b;
+  --on-danger: #ffffff;
+  --danger-soft-bg: #fee2e2;
+  --danger-soft-fg: #991b1b;
+  --warning: #92400e;
+  --warning-soft-bg: #fef3c7;
+  --warning-soft-fg: #92400e;
+  --info: #0369a1;
+  --info-soft-bg: #e0f2fe;
+  --info-soft-fg: #075985;
+  --neutral-soft-bg: #e2e8f0;
+  --neutral-soft-fg: #334155;
+  --focus: #2563eb;
+  --overlay: rgb(15 23 42 / 0.5);
+  --skeleton: #e5eaf1;
+  --skeleton-shine: #f1f4f8;
+  --scrollbar: #c3cbd8;
+  --shadow-1: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-2: 0 8px 24px rgb(15 23 42 / 0.1);
+  --shadow-3: 0 24px 48px rgb(15 23 42 / 0.16);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Narrower gutters on small screens; the bottom tab bar reserves its height. */
+@media (max-width: 1023.98px) {
+  :root { --gutter: var(--space-6); }
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --gutter: var(--space-4);
+    --header-h: 56px;
+    --bottom-nav-h: 64px;
+  }
+}

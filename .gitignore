@@ -1,9 +1,42 @@
+# dependencies and build output
 node_modules/
 dist/
+coverage/
 *.log
 
+# local environment
+.env
+.env.*
 .openchamber/
 
-romtest.html
+# ROMs, saves and save states never belong in the repository
+*.gb
+*.gbc
+*.gba
+*.nds
+*.nes
+*.fds
+*.sfc
+*.smc
+*.gen
+*.smd
+*.sms
+*.gg
+*.n64
+*.z64
+*.v64
+*.vb
+*.zip
+*.7z
+*.sav
+*.srm
+*.state
+*.rtc
 
+# local debug pages
+romtest.html
 layouttest.html
+
+# OCR bench outputs / download cache
+bench/results/
+bench/.cache/

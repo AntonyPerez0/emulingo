@@ -1,0 +1,94 @@
+{
+ "id": "gb1-partial-hello-de",
+ "platform": "gb",
+ "lang": "de",
+ "frameKind": "overworld-dialog",
+ "partial": true,
+ "palette": "gbc-red",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "Hallo! Willk"
+   ],
+   "text": "Hallo! Willk"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 112,
+   "w": 14,
+   "h": 7,
+   "px": 48
+  },
+  {
+   "role": "dialog",
+   "x": 25,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "dialog",
+   "x": 33,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "dialog",
+   "x": 50,
+   "y": 112,
+   "w": 2,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "dialog",
+   "x": 64,
+   "y": 112,
+   "w": 12,
+   "h": 7,
+   "px": 47
+  },
+  {
+   "role": "dialog",
+   "x": 81,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "dialog",
+   "x": 89,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "dialog",
+   "x": 96,
+   "y": 112,
+   "w": 6,
+   "h": 7,
+   "px": 24
+  },
+  {
+   "role": "dialog",
+   "x": 40,
+   "y": 114,
+   "w": 6,
+   "h": 5,
+   "px": 18
+  }
+ ]
+}

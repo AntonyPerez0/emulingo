@@ -1,0 +1,135 @@
+{
+ "id": "gb1-pokedex-hyphen-de",
+ "platform": "gb",
+ "lang": "de",
+ "frameKind": "overworld-dialog",
+ "partial": false,
+ "palette": "gbc-red",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "Der POKéDEX zeich-",
+    "net Daten auf."
+   ],
+   "text": "Der POKéDEX zeichnet Daten auf."
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 112,
+   "w": 22,
+   "h": 7,
+   "px": 61
+  },
+  {
+   "role": "dialog",
+   "x": 40,
+   "y": 112,
+   "w": 45,
+   "h": 7,
+   "px": 146
+  },
+  {
+   "role": "dialog",
+   "x": 88,
+   "y": 112,
+   "w": 6,
+   "h": 7,
+   "px": 26
+  },
+  {
+   "role": "dialog",
+   "x": 121,
+   "y": 112,
+   "w": 3,
+   "h": 7,
+   "px": 13
+  },
+  {
+   "role": "dialog",
+   "x": 136,
+   "y": 112,
+   "w": 12,
+   "h": 7,
+   "px": 28
+  },
+  {
+   "role": "dialog",
+   "x": 104,
+   "y": 114,
+   "w": 5,
+   "h": 5,
+   "px": 15
+  },
+  {
+   "role": "dialog",
+   "x": 112,
+   "y": 114,
+   "w": 6,
+   "h": 5,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 128,
+   "y": 114,
+   "w": 5,
+   "h": 5,
+   "px": 14
+  },
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 128,
+   "w": 21,
+   "h": 7,
+   "px": 55
+  },
+  {
+   "role": "dialog",
+   "x": 40,
+   "y": 128,
+   "w": 21,
+   "h": 7,
+   "px": 63
+  },
+  {
+   "role": "dialog",
+   "x": 88,
+   "y": 128,
+   "w": 20,
+   "h": 7,
+   "px": 56
+  },
+  {
+   "role": "dialog",
+   "x": 64,
+   "y": 130,
+   "w": 14,
+   "h": 5,
+   "px": 38
+  },
+  {
+   "role": "dialog",
+   "x": 144,
+   "y": 130,
+   "w": 7,
+   "h": 4,
+   "px": 16
+  },
+  {
+   "role": "dialog",
+   "x": 113,
+   "y": 133,
+   "w": 3,
+   "h": 2,
+   "px": 6
+  }
+ ]
+}

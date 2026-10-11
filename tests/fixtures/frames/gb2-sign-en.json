@@ -1,0 +1,223 @@
+{
+ "id": "gb2-sign-en",
+ "platform": "gb",
+ "lang": "en",
+ "frameKind": "overworld-dialog",
+ "partial": false,
+ "palette": "gbc-day",
+ "font": "gb-thin",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "sign",
+   "lines": [
+    "NEW BARK TOWN",
+    "The Town Where the"
+   ],
+   "text": "NEW BARK TOWN The Town Where the"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 9,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 19
+  },
+  {
+   "role": "dialog",
+   "x": 17,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 25,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 41,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 20
+  },
+  {
+   "role": "dialog",
+   "x": 49,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 57,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 65,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 14
+  },
+  {
+   "role": "dialog",
+   "x": 81,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "dialog",
+   "x": 89,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 16
+  },
+  {
+   "role": "dialog",
+   "x": 97,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 105,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 19
+  },
+  {
+   "role": "dialog",
+   "x": 9,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "dialog",
+   "x": 17,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 14
+  },
+  {
+   "role": "dialog",
+   "x": 41,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "dialog",
+   "x": 81,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 89,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 14
+  },
+  {
+   "role": "dialog",
+   "x": 129,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 12
+  },
+  {
+   "role": "dialog",
+   "x": 137,
+   "y": 128,
+   "w": 14,
+   "h": 7,
+   "px": 36
+  },
+  {
+   "role": "dialog",
+   "x": 25,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 14
+  },
+  {
+   "role": "dialog",
+   "x": 49,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 12
+  },
+  {
+   "role": "dialog",
+   "x": 57,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 12
+  },
+  {
+   "role": "dialog",
+   "x": 65,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 12
+  },
+  {
+   "role": "dialog",
+   "x": 97,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 14
+  },
+  {
+   "role": "dialog",
+   "x": 105,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 9
+  },
+  {
+   "role": "dialog",
+   "x": 113,
+   "y": 130,
+   "w": 5,
+   "h": 5,
+   "px": 14
+  }
+ ]
+}

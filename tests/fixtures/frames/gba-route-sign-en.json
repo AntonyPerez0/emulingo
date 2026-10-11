@@ -1,0 +1,38 @@
+{
+ "id": "gba-route-sign-en",
+ "platform": "gba",
+ "lang": "en",
+ "frameKind": "location-sign",
+ "partial": false,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [
+  {
+   "kind": "sign",
+   "lines": [
+    "ROUTE 101"
+   ],
+   "text": "ROUTE 101"
+  }
+ ],
+ "text": [
+  {
+   "role": "sign",
+   "x": 22,
+   "y": 6,
+   "w": 30,
+   "h": 10,
+   "px": 204
+  },
+  {
+   "role": "sign",
+   "x": 56,
+   "y": 6,
+   "w": 14,
+   "h": 10,
+   "px": 104
+  }
+ ]
+}

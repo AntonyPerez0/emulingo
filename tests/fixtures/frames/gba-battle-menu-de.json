@@ -1,0 +1,168 @@
+{
+ "id": "gba-battle-menu-de",
+ "platform": "gba",
+ "lang": "de",
+ "frameKind": "battle-menu",
+ "partial": false,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [
+  {
+   "kind": "hud",
+   "lines": [
+    "FIFFYEN Lv2",
+    "HP"
+   ],
+   "text": "FIFFYEN Lv2 HP"
+  },
+  {
+   "kind": "hud",
+   "lines": [
+    "FLEMMLI Lv5",
+    "HP",
+    "19/ 20"
+   ],
+   "text": "FLEMMLI Lv5 HP 19/ 20"
+  },
+  {
+   "kind": "dialog",
+   "lines": [
+    "Was soll",
+    "FLEMMLI tun?"
+   ],
+   "text": "Was soll FLEMMLI tun?"
+  },
+  {
+   "kind": "menu",
+   "lines": [
+    "KAMPF BEUTEL",
+    "POKéMON FLUCHT"
+   ],
+   "text": "KAMPF BEUTEL POKéMON FLUCHT"
+  }
+ ],
+ "text": [
+  {
+   "role": "boxed",
+   "x": 20,
+   "y": 17,
+   "w": 47,
+   "h": 10,
+   "px": 302
+  },
+  {
+   "role": "boxed",
+   "x": 87,
+   "y": 17,
+   "w": 18,
+   "h": 10,
+   "px": 97
+  },
+  {
+   "role": "boxed",
+   "x": 133,
+   "y": 75,
+   "w": 49,
+   "h": 10,
+   "px": 306
+  },
+  {
+   "role": "boxed",
+   "x": 208,
+   "y": 75,
+   "w": 18,
+   "h": 10,
+   "px": 101
+  },
+  {
+   "role": "boxed",
+   "x": 196,
+   "y": 98,
+   "w": 16,
+   "h": 10,
+   "px": 94
+  },
+  {
+   "role": "boxed",
+   "x": 216,
+   "y": 98,
+   "w": 12,
+   "h": 10,
+   "px": 91
+  },
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 120,
+   "w": 18,
+   "h": 10,
+   "px": 119
+  },
+  {
+   "role": "dialog",
+   "x": 33,
+   "y": 120,
+   "w": 20,
+   "h": 10,
+   "px": 118
+  },
+  {
+   "role": "menu",
+   "x": 136,
+   "y": 121,
+   "w": 30,
+   "h": 10,
+   "px": 212
+  },
+  {
+   "role": "menu",
+   "x": 183,
+   "y": 121,
+   "w": 5,
+   "h": 10,
+   "px": 34
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 121,
+   "w": 36,
+   "h": 10,
+   "px": 232
+  },
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 136,
+   "w": 40,
+   "h": 10,
+   "px": 260
+  },
+  {
+   "role": "dialog",
+   "x": 55,
+   "y": 136,
+   "w": 24,
+   "h": 10,
+   "px": 128
+  },
+  {
+   "role": "menu",
+   "x": 136,
+   "y": 137,
+   "w": 42,
+   "h": 10,
+   "px": 310
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 137,
+   "w": 36,
+   "h": 10,
+   "px": 216
+  }
+ ]
+}

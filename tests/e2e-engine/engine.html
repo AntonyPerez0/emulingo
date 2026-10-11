@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OCR engine check</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; padding: 16px; font: 14px/1.45 system-ui, sans-serif; background: Canvas; color: CanvasText; }
+    pre { white-space: pre-wrap; }
+  </style>
+  <script type="module" src="./engine-page.js"></script>
+</head>
+<body>
+  <main>
+    <h1>OCR engine check</h1>
+    <p>Runs the neural engine (worker) and the Tesseract fallback on generated Pokémon-style frames. Driven by <code>tests/e2e-engine/run.mjs</code>.</p>
+    <pre id="out" aria-live="polite"></pre>
+  </main>
+</body>
+</html>

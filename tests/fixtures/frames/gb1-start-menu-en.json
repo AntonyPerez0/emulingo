@@ -1,0 +1,172 @@
+{
+ "id": "gb1-start-menu-en",
+ "platform": "gb",
+ "lang": "en",
+ "frameKind": "start-menu",
+ "partial": false,
+ "palette": "dmg-gray",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "menu",
+   "lines": [
+    "POKéDEX",
+    "POKéMON",
+    "ITEM",
+    "RED",
+    "SAVE",
+    "OPTION",
+    "EXIT"
+   ],
+   "text": "POKéDEX POKéMON ITEM RED SAVE OPTION EXIT"
+  }
+ ],
+ "text": [
+  {
+   "role": "menu",
+   "x": 88,
+   "y": 16,
+   "w": 5,
+   "h": 7,
+   "px": 23
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 16,
+   "w": 45,
+   "h": 7,
+   "px": 146
+  },
+  {
+   "role": "menu",
+   "x": 144,
+   "y": 16,
+   "w": 6,
+   "h": 7,
+   "px": 26
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 32,
+   "w": 55,
+   "h": 7,
+   "px": 190
+  },
+  {
+   "role": "menu",
+   "x": 97,
+   "y": 48,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "menu",
+   "x": 104,
+   "y": 48,
+   "w": 5,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "menu",
+   "x": 112,
+   "y": 48,
+   "w": 5,
+   "h": 7,
+   "px": 22
+  },
+  {
+   "role": "menu",
+   "x": 120,
+   "y": 48,
+   "w": 7,
+   "h": 7,
+   "px": 34
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 64,
+   "w": 13,
+   "h": 7,
+   "px": 52
+  },
+  {
+   "role": "menu",
+   "x": 112,
+   "y": 64,
+   "w": 6,
+   "h": 7,
+   "px": 28
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 80,
+   "w": 29,
+   "h": 7,
+   "px": 96
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 96,
+   "w": 21,
+   "h": 7,
+   "px": 65
+  },
+  {
+   "role": "menu",
+   "x": 121,
+   "y": 96,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "menu",
+   "x": 128,
+   "y": 96,
+   "w": 15,
+   "h": 7,
+   "px": 60
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 22
+  },
+  {
+   "role": "menu",
+   "x": 104,
+   "y": 112,
+   "w": 6,
+   "h": 7,
+   "px": 26
+  },
+  {
+   "role": "menu",
+   "x": 113,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "menu",
+   "x": 120,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 17
+  }
+ ]
+}

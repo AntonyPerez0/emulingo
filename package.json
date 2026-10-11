@@ -1,20 +1,56 @@
 {
   "name": "emulingo",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Play Game Boy games and learn a language - live OCR translation, TTS and SRS flashcards in your browser.",
+  "description": "Play retro games you own and learn a language as you go: on-screen text is read, translated and turned into flashcards.",
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
-    "dev": "vite --host",
+    "dev": "vite",
+    "dev:lan": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "test:e2e": "node build/run-e2e.mjs",
+    "e2e:pwa": "node build/smoke.mjs",
+    "e2e:emu": "node tests/e2e-emu/emu.e2e.mjs",
+    "e2e:capture": "node tests/e2e-capture/emulator.mjs && node tests/e2e-capture/perf.mjs",
+    "e2e:engine": "node tests/e2e-engine/run.mjs",
+    "e2e:learn": "node tests/e2e-learn/learn.e2e.mjs",
+    "e2e:settings": "node tests/e2e-settings/settings.e2e.mjs",
+    "e2e:play": "node tests/e2e-play/play.e2e.mjs",
+    "e2e:ocr": "node tests/e2e-qa/ocr-flow.e2e.mjs",
+    "bench:ocr": "node bench/run.mjs",
+    "bench:scenes": "node bench/preview.mjs",
+    "bench:report": "node bench/report.mjs"
+  },
+  "dependencies": {
+    "nspell": "2.1.5",
+    "onnxruntime-web": "1.29.0",
+    "tesseract.js": "5.1.1",
+    "tesseract.js-core": "5.1.1"
   },
   "devDependencies": {
-    "@napi-rs/canvas": "^1.0.8",
-    "tesseract.js": "^7.0.0",
-    "vite": "^5.4.11"
-  },
-  "allowScripts": {
-    "esbuild@0.21.5": true
+    "@eslint/js": "10.0.1",
+    "@napi-rs/canvas": "1.0.8",
+    "@paddleocr/paddleocr-js": "0.4.2",
+    "@tesseract.js-data/deu": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "axe-core": "4.10.3",
+    "dictionary-de": "3.0.0",
+    "dictionary-en": "4.0.0",
+    "dictionary-es": "4.0.0",
+    "dictionary-fr": "3.0.0",
+    "eslint": "10.12.0",
+    "fake-indexeddb": "6.2.5",
+    "globals": "17.13.0",
+    "jsdom": "26.1.0",
+    "playwright": "1.56.1",
+    "vite": "5.4.21",
+    "vitest": "3.2.7"
   }
 }

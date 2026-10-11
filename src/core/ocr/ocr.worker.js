@@ -57,7 +57,7 @@ async function download(id, key, url, sizeHint) {
   try {
     res = await fetch(url);
   } catch (e) {
-    throw new Error(`Couldn’t download the text recognition data (${errorInfo(e).message}).`);
+    throw new Error(`Couldn’t download the text recognition data (${errorInfo(e).message}).`, { cause: e });
   }
   if (!res.ok) throw new Error(`Couldn’t download the text recognition data (HTTP ${res.status}).`);
   const encoded = (res.headers.get('content-encoding') || 'identity') !== 'identity';
@@ -78,7 +78,7 @@ async function download(id, key, url, sizeHint) {
     try {
       step = await reader.read();
     } catch (e) {
-      throw new Error(`Couldn’t download the text recognition data (${errorInfo(e).message}).`);
+      throw new Error(`Couldn’t download the text recognition data (${errorInfo(e).message}).`, { cause: e });
     }
     const { done, value } = step;
     if (done) break;
@@ -135,7 +135,7 @@ async function loadModel({ id, key, kind, url, size }) {
       // harmless "unused initializer" warnings to the console as errors
       session = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'], graphOptimizationLevel: 'all', logSeverityLevel: 3 });
     } catch (e) {
-      throw new Error(`Text recognition couldn’t start (${errorInfo(e).message}).`);
+      throw new Error(`Text recognition couldn’t start (${errorInfo(e).message}).`, { cause: e });
     }
     // ORT compiled the runtime with the first session; free the 14 MB copy
     ort.env.wasm.wasmBinary = undefined;

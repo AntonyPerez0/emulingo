@@ -245,7 +245,7 @@ describe('installEmulatorFocusRelease', () => {
     game.addEventListener('keydown', ejs);
     off = installEmulatorFocusRelease({ gameEl: game, toolbarEl: document.getElementById('tb') });
     game.focus();
-    let e = key(game, 'Tab');
+    const e = key(game, 'Tab');
     expect(document.activeElement.id).toBe('first');
     expect(e.defaultPrevented).toBe(true);
     game.focus();

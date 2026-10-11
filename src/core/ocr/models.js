@@ -518,7 +518,7 @@ function unionBox(a, b) {
 // joining their texts afterwards duplicates the glyphs where they overlap
 // ("Hello t" + "there!"). Returns boxes sorted in reading order.
 export function mergeLineBoxes(boxes, opts) {
-  let list = boxes.map((b) => ({ ...b, parts: b.parts || 1 }));
+  const list = boxes.map((b) => ({ ...b, parts: b.parts || 1 }));
   let merged = true;
   while (merged) {
     merged = false;

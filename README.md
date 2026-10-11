@@ -1,105 +1,248 @@
 # Emulingo
 
-**Play Game Boy games and learn a language.**
+**Play retro games you own and learn a language as you go.**
 
-Emulingo is a web app that runs retro games (Game Boy / GBC / GBA and more) in your browser and turns the game's text into a live language lesson. It watches the game screen with OCR, translates the dialogue, pronounces it, and collects vocabulary into a spaced-repetition flashcard deck - Duolingo-style, but you learn by actually playing.
+Emulingo runs classic console games in your browser, reads the text on the game screen, translates it line by line and turns what you read into flashcards. Play a Pokémon game in German, French or Spanish, and the dialogue you meet becomes your vocabulary list.
 
-> Like the original "Emulingo" concept: you supply your own legally obtained ROM, the app does the rest.
+Everything except translation happens on your device: the emulator, the text recognition, your games, saves and flashcards. There’s no account and no Emulingo server.
+
+> Emulingo doesn’t include any games. Use ROM files of games you own, or homebrew and public-domain games.
 
 ## Features
 
-- 🎮 **Built-in emulator** (EmulatorJS): GB, GBC, GBA, NES, SNES, Genesis, NDS. Keyboard + gamepad supported.
-- 💾 **Game saves** - full save states (💾 Save / 📂 Load, auto-saved every 60 s and restored when you return to a game) plus battery-SRAM flushing so in-game saves (Pokémon "Save" menu) persist across sessions.
-- 🌍 **Any language pair** - 28 languages, cross-translate any direction (e.g. German game → English, or Spanish → French).
-- 🔍 **Live OCR translation** - detects every text region on screen (dialog boxes, menus, battle text, HP plates, clock screens), reads them all, spell-corrects OCR misreads against a real dictionary and translates each region separately. Two local OCR engines: **PaddleOCR PP-OCRv5** (neural, ~8 MB on-device model, default) and Tesseract (fallback), + Hunspell/nspell correction + translation engine chain.
-- 📖 **Dictionary** - every word and sentence you encounter is recorded with its translation; searchable, with on-demand lookup for unseen words and one-tap speak/add-to-deck.
-- 🖱 **Tap-to-look-up** - tap any word in the live translation panel for an instant dictionary popup.
-- 🎧 **Text-to-speech** - every translation is pronounced with the Web Speech API (adjustable speed and voice).
-- 🃏 **Spaced-repetition flashcards** - tap "+ Flashcard" or enable auto-collect; SM-2-style scheduler with due queue, mature-card tracking and daily streak.
-- 🧠 **Review mode** - flashcard sessions with Again/Good/Easy grading.
-- 📊 **Progress tracking** - weekly activity chart, deck stats, dictionary stats, CSV export.
-- 💽 **Backup & restore** - one-click JSON export/import of your deck, dictionary, history and settings.
-- 🕹 **ROM library** - your ROMs are stored locally in your browser (IndexedDB); nothing is ever uploaded.
-- 📱 **PWA** - installable, works offline for cached parts, responsive layout for tablets/phones.
+- **Built-in emulator** – [EmulatorJS](https://emulatorjs.org) 4.2.3, with keyboard and gamepad support and a touch gamepad on phones and tablets.
+- **Your game library** – ROM files stay in your browser’s storage. ZIP archives are unpacked on import, and the same game is never stored twice.
+- **Saves that last** – in-game saves (a Pokémon game’s own Save menu) are kept safe across sessions, plus a quick-save slot and an autosave that offers “Resume where you left off?” the next time you play.
+- **Live translation** – Emulingo watches the screen and reads dialogue boxes, menus and battle text as they appear. Dialogue that runs over several boxes is joined into whole sentences before it is translated.
+- **Translate now and Text area** – read the screen on demand (T), or mark the part of the screen to read when a game draws text without a box.
+- **Look up any word** – select a word in the live panel to see its translation, hear it and add it to your deck.
+- **Dictionary** – every line and word you meet is recorded with its translation, searchable, with Anki export.
+- **Spaced-repetition flashcards** – lines are added to your deck automatically (or on demand) and scheduled with Again / Hard / Good / Easy grading, a daily limit for new cards, a study streak and a 7-day activity chart. Export as CSV or as TSV for Anki.
+- **Speech** – listen to any line or card in its own language with your device’s voices.
+- **Backups** – export everything, game saves included if you like, to one file and restore it on another device.
+- **Installable and offline-capable** – install it as an app; after the first visit it opens without a connection (see [Downloads and offline use](#downloads-and-offline-use)).
+- **Accessible** – built to WCAG 2.2 AA: full keyboard use, screen-reader announcements, dark and light themes (see [Accessibility](#accessibility)).
+
+## Supported systems
+
+| System | File types |
+|---|---|
+| Game Boy and Game Boy Color | `.gb` `.gbc` |
+| Game Boy Advance | `.gba` |
+| NES and Famicom Disk System | `.nes` `.fds` |
+| Super Nintendo | `.sfc` `.smc` |
+| Sega Mega Drive and Genesis | `.md` `.gen` `.smd` |
+| Sega Master System | `.sms` |
+| Sega Game Gear | `.gg` |
+| Nintendo DS | `.nds` |
+| Nintendo 64 | `.n64` `.z64` `.v64` |
+| Virtual Boy | `.vb` |
+
+Any of these can also be imported inside a `.zip` (or `.7z`, after you choose the system). Game Boy, Game Boy Color and Game Boy Advance are the systems tested end to end, and text recognition is tuned for their pixel fonts.
+
+## Supported game languages
+
+You can translate into any of these 28 languages. How well Emulingo reads a game depends on the game’s language:
+
+| Game language | Text recognition | Spell correction of misreads |
+|---|---|---|
+| English, German, French, Spanish, Italian | On-device neural model, included | Yes |
+| Czech, Danish, Dutch, Finnish, Hungarian, Indonesian, Norwegian, Polish, Portuguese, Romanian, Swedish, Turkish, Vietnamese | On-device neural model, included | No |
+| Japanese, Chinese | On-device neural model, downloaded the first time (about 17 MB); the Classic reader as a fallback | No |
+| Arabic, Greek, Hebrew, Hindi, Korean, Russian, Thai, Ukrainian | Classic reader (Tesseract) – noticeably less accurate | No |
+
+Accuracy is measured on the OCR bench for English, German, French and Spanish game text (see [OCR bench](#ocr-bench)); the other languages haven’t been measured yet.
+
+## How it works
+
+1. **Frame capture** – a few times a second Emulingo copies the game’s picture at its native resolution (160 × 144 for a Game Boy), pixel for pixel, without smoothing.
+2. **Text-box detection** – it finds framed boxes (dialogue, menus, battle text) and ignores pixels that blink, such as the “more text” arrow. A box is read only once its contents have stopped changing, so text that is still typing out isn’t read half-finished. Screens without boxes can be read as a whole.
+3. **Neural text recognition in a worker** – each line of a box is enlarged and read by a PaddleOCR PP-OCRv5 model running in [ONNX Runtime Web](https://onnxruntime.ai) inside a Web Worker, so reading text doesn’t hold up the game. If the neural reader can’t run, the Classic reader ([Tesseract.js](https://tesseract.projectnaptha.com)) takes over.
+4. **Clean-up** – game quirks are fixed (POKéMON spellings, cursor and arrow glyphs, letter-spaced fonts), and for uncertain lines a Hunspell dictionary corrects misread words. Both run off the main thread.
+5. **Dialogue continuity** – when a sentence continues into the next box, the pages are joined, so you translate whole sentences instead of fragments.
+6. **Translation** – each new line is translated once and cached on your device. Google Translate is used first, MyMemory as a fallback.
 
 ## Quick start
 
+You need [Node.js](https://nodejs.org) 20.19 or newer (22 recommended).
+
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Open http://localhost:5173, then:
+Vite prints the local address (normally http://localhost:5173). On Windows you can double-click `start.bat` instead: it installs the dependencies the first time and opens the app in your browser.
 
-1. Go to **Play** and drop in a legally obtained ROM (`.gb`, `.gbc`, `.gba`, ...).
-2. In **Settings**, set the *game language* (what the ROM text is written in) and the language to translate to.
-3. Play! Dialogue appears in the live-translation panel on the right; flashcards are collected automatically.
+Then:
 
-For production hosting:
+1. Choose the language the game is in and the language to translate into.
+2. Choose a ROM file, or drop it onto the page.
+3. Play. Lines appear in the **Live translation** panel next to the game, and new sentences go into your deck.
 
-```bash
-npm run build   # outputs dist/
-npm run preview # serve the build locally
-```
+To test the app on a phone on the same network, use `npm run dev:lan` (this makes the dev server reachable from other devices).
 
-## Hosting on GitHub Pages
+## Keyboard shortcuts
 
-Yes, GitHub Pages works perfectly - Emulingo is a **fully static, client-side app** (no server, no database). All paths are relative, so it works from a subpath like `username.github.io/emulingo/`.
+Press **?** anywhere to see the shortcuts for the current page. Single-key shortcuts can be turned off in Settings.
 
-To deploy:
+| Where | Key | Action |
+|---|---|---|
+| Anywhere | ? | Show keyboard shortcuts |
+| Anywhere | Esc | Stop speaking |
+| Play | T | Translate now |
+| Play | P | Turn auto-translate on or off |
+| Play | G | Return to the game |
+| In the game | Esc or Tab | Leave the game for the toolbar |
+| In the game | Arrow keys, Z, X, Enter, V (Q, E) | D-pad, A, B, Start, Select (L, R) |
+| Review | Space or Enter | Show the answer |
+| Review | 1, 2, 3, 4 | Again, Hard, Good, Easy |
+| Review | S | Listen to the card |
+| Deck, Dictionary | Ctrl+Z (⌘Z on a Mac) | Undo the last delete |
 
-1. Create a GitHub repository and push this project to it (the included `.github/workflows/deploy.yml` handles the build).
-2. In the repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Push to `main` (or run the workflow manually). Your app goes live at `https://<user>.github.io/<repo>/`.
+Game controls can be changed in **More game options › Game controls…**.
 
-Notes:
-- Nothing problematic is hosted: the app ships no ROMs - users supply their own legally obtained game files, which stay on their device.
-- Works the same on any other static host (Netlify, Vercel, Cloudflare Pages, etc.) - just serve the `dist/` folder.
-- The ROM library, save states, flashcards and dictionary are per-device (IndexedDB/localStorage), so progress does not sync between devices - use **Settings → Export backup** to move progress manually.
+## Accessibility
 
-## Mobile
+Emulingo aims to meet [WCAG 2.2](https://www.w3.org/TR/WCAG22/) level AA.
 
-Emulingo is designed to work well on phones and tablets:
+- **Keyboard** – every control is a real button, link or form field with a visible focus ring. The game keeps the keys it needs, and Esc or Tab always leaves it. Single-key shortcuts can be switched off (WCAG 2.1.4).
+- **Screen readers** – new lines are announced (can be turned off), the game text and translations are marked up in their own languages, and every page has one heading to land on.
+- **Moving content** – auto-translate can be paused, and while you’re reading the panel a new line waits behind a “Show” button instead of replacing what you’re reading (WCAG 2.2.2).
+- **Visual** – dark and light themes with checked contrast, support for reduced motion and Windows contrast themes, and layouts that work at 320 px wide and at 200 % zoom.
 
-- **Installable PWA** - "Add to Home Screen" on Android (Chrome) and iOS (Safari) launches it fullscreen like a native app.
-- EmulatorJS shows its **virtual gamepad** automatically on touch devices.
-- Layout, tab bar, buttons and inputs are sized for touch (44px targets, no iOS input zoom, safe-area aware for notched phones).
-- **Battery saver**: OCR pauses automatically when the app is backgrounded, scan interval defaults are gentler on touch devices, and the game canvas renders with crisp pixel scaling.
-- One iOS quirk: automatic background pronunciation may stay silent until you tap the screen once (Apple requires a user gesture before audio).
+What has been tested: the end-to-end suites run [axe-core](https://github.com/dequelabs/axe-core) 4.10.3 (WCAG 2.0–2.2 A and AA rules plus best practices) on every view, in both themes, at desktop and phone sizes, and fail on any violation; they also walk through the main tasks with the keyboard only, in Chromium.
 
-## How the translation loop works
+Known gaps:
 
-1. Every ~1.2 s the game canvas is snapshotted (the emulator canvas is preserved).
-2. A multi-region detector finds all text areas on screen. You can also drag a custom region with **Zone: Manual**.
-3. Text is read by a local OCR engine: **PaddleOCR PP-OCRv5** latin recognition model (neural, on-device in a Web Worker via onnxruntime-web WASM - default) or Tesseract. Unchanged regions/frames are cached and skipped.
-4. Identical frames are skipped; text must appear stable for N scans before translating (reduces noise).
-5. OCR misreads are spell-corrected against a Hunspell dictionary for the game language (candidate generation + dictionary check; never rewrites a word unless a single unambiguous dictionary word fits). Dictionaries download once per language (~1 MB) and are cached in IndexedDB. Toggle in Settings → OCR → "Fix OCR misreads".
-6. Each region is translated separately (Google translate endpoints first, MyMemory as fallback - all keyless; cached in localStorage) and shown as its own row in the live panel, spoken via TTS, and optionally saved as a flashcard.
+- Testing with real screen readers (NVDA, JAWS, VoiceOver, TalkBack) hasn’t been done yet.
+- EmulatorJS draws a few controls of its own inside the game frame; Emulingo provides its own accessible controls for all of them, but one of EmulatorJS’s menu buttons can’t be hidden.
+- The game picture itself is only as accessible as the text Emulingo can read from it.
 
-## Important notes
-
-- **ROMs are not included.** Only use games you legally own.
-- **Internet is required** at runtime for the emulator core, OCR language data, translations and speech voices (all fetched/loaded from CDNs and free APIs).
-- **Best in Chrome/Edge** - the widest TTS voice selection. Firefox works but has fewer built-in voices.
-- OCR works best on games with clear bitmap fonts (Pokémon, Zelda, classic RPGs). Cursive/stylized fonts may need the manual zone tool.
-
-## Tech stack
-
-- Vite + vanilla ES modules (no framework)
-- EmulatorJS (emulator core, loaded from CDN)
-- PaddleOCR PP-OCRv5 (neural OCR, on-device) + Tesseract.js (fallback OCR)
-- Hunspell dictionaries + nspell (OCR spell-correction, loaded from CDN)
-- Google Translate public endpoints + MyMemory (translation chain, no API keys)
-- Web Speech API (TTS)
-- Service worker + PWA manifest
+If something doesn’t work for you, please open an issue.
 
 ## Privacy
 
-Everything - ROMs, flashcards, history, settings, caches - lives in your browser's storage. There is no server, no account and no tracking. "Erase everything" in Settings wipes it all.
+**Stays on your device:** your ROM files, game saves, flashcards, dictionary, history and settings, and all text recognition. Nothing is uploaded to an Emulingo server – there isn’t one. No analytics, no cookies, no account.
+
+**Sent to translation services:** the text Emulingo reads from the game screen, and words you look up, are sent to Google Translate’s public endpoints (`translate.googleapis.com`, with `clients5.google.com` as a second route), or to MyMemory (`api.mymemory.translated.net`) if Google doesn’t answer. Google also reports which language it detected, which Emulingo uses to warn you when the game language setting looks wrong. These free services aren’t run by Emulingo and have their own privacy policies. Translations are cached on your device, so a line isn’t sent again.
+
+**Downloaded when needed:** the emulator from `cdn.emulatorjs.org`, spelling dictionaries from `cdn.jsdelivr.net`, Classic reader language data from `tessdata.projectnaptha.com`, and the Japanese and Chinese reader from PaddleOCR’s model server (`paddle-model-ecology.bj.bcebos.com`, Baidu Cloud). Like any website, these servers see your IP address and what is downloaded, but no game text.
+
+**Speech** uses your browser’s voices. Emulingo prefers voices installed on your device; some browsers also offer online voices (for example Chrome’s “Google” voices), which send the spoken text to that voice provider.
+
+The site that hosts Emulingo (for example GitHub Pages) receives ordinary web requests for the app’s files.
+
+## Storage and backups
+
+Emulingo keeps its data in your browser’s storage for this site: ROMs, save states, flashcards, the dictionary and history in IndexedDB; settings and the translation cache in local storage; the app, models and emulator files in the Cache Storage. After your first ROM import Emulingo asks the browser to keep this storage persistent, so it isn’t cleared to free up space; Settings › Data & privacy shows whether the browser agreed and how much space is used.
+
+**Back up** in **Settings › Data & privacy › Export backup**. A backup is one JSON file with your settings, flashcards and their review history, dictionary, recent lines and study activity – and, if you tick the option, your game saves (save states and in-game saves). ROM files are never included; a save finds its game again once you add the same ROM on the new device. Restore with **Merge** (keeps what’s already here) or **Replace**. Backups from Emulingo 1 can be restored too.
+
+**Erase everything** (Settings › Danger zone) removes all of it from this browser: games, saves (including the emulator’s own save storage), flashcards, settings, caches and the offline copy of the app.
+
+Your data doesn’t sync between devices or browsers; use a backup to move it.
+
+## Downloads and offline use
+
+Everything Emulingo downloads is kept for next time, so most of it works offline after the first use:
+
+| What | Downloaded | Size | Offline afterwards |
+|---|---|---|---|
+| The app | on your first visit | about 0.8 MB (0.3 MB compressed) | Yes |
+| The emulator for a system | the first time you start a game for that system | about 2 MB for Game Boy or Game Boy Advance; more for some systems | Yes |
+| Text recognition | the first time a game shows text | about 27 MB (12.9 MB of models and a 14 MB runtime) | Yes |
+| The Japanese and Chinese reader | the first time a Japanese or Chinese game shows text | about 17 MB | Yes |
+| A spelling dictionary | per game language, when spell correction is on | 0.5–1.3 MB | Yes |
+| The Classic reader | only for languages or browsers that need it | 4 MB, plus 2–15 MB of language data | Yes |
+| Translations | every new line | a few hundred bytes | Lines translated before are shown again; new lines show the original text until you’re back online |
+
+When a new version of Emulingo is published, the app shows “An update is available” instead of changing under you mid-game; choose **Reload** when it suits you.
+
+## Development
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server on localhost with hot reload |
+| `npm run dev:lan` | Dev server reachable from other devices on your network |
+| `npm run build` | Production build into `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm test` | Unit tests (Vitest) |
+| `npm run test:watch` | Unit tests in watch mode |
+| `npm run lint` | ESLint |
+| `npm run test:e2e` | Every browser end-to-end suite, one after another |
+| `npm run e2e:pwa`, `e2e:emu`, `e2e:capture`, `e2e:engine`, `e2e:learn`, `e2e:settings`, `e2e:play` | One end-to-end suite |
+| `npm run bench:ocr` | OCR accuracy and speed benchmark |
+| `npm run bench:scenes`, `bench:report` | Bench contact sheet; re-render bench tables |
+
+Emulingo is plain JavaScript modules built with [Vite](https://vitejs.dev) – no framework.
+
+```
+src/core/        data, emulator and OCR logic (no DOM), unit-tested
+  ocr/           capture, text-box detection, engine + worker, layout, lexicon, dialogue, spelling
+src/ui/          app shell, components and views (play/, review, deck, dictionary, settings)
+src/styles/      design tokens, base styles, components, per-view styles
+public/          manifest, icons and the OCR models
+build/           Vite plugins (service worker, CSP), the e2e runner and the production smoke test
+tests/unit/      Vitest unit tests
+tests/e2e-*/     browser end-to-end suites (Playwright)
+bench/           OCR bench: generated game screens, adapters, metrics
+```
+
+### Unit tests
+
+`npm test` runs about 1,100 tests in Node, with jsdom for DOM code and an in-memory IndexedDB.
+
+### End-to-end tests
+
+The suites drive headless Chromium with [Playwright](https://playwright.dev) (run `npx playwright install chromium` once). The emulator suites use the real EmulatorJS 4.2.3 with the Game Boy and Game Boy Advance cores and a homebrew test ROM generated by the bench; the first run downloads EmulatorJS from the npm registry into `bench/.cache`. Translation checks call the real translation service, so they need an internet connection.
+
+| Suite | Covers |
+|---|---|
+| `e2e:pwa` | The production build with its service worker and Content Security Policy: a real game, text read and translated, the update prompt, and starting and reading a game offline. Needs `openssl`. |
+| `e2e:emu` | Emulator integration: starting games, in-game saves, quick save and load, autosave, ROM import |
+| `e2e:capture` | Pixel-exact frame capture at different sizes and pixel densities |
+| `e2e:engine` | The OCR engine in its worker, the Classic fallback, main-thread blocking |
+| `e2e:learn`, `e2e:settings`, `e2e:play` | The views: accessibility scans, keyboard walkthroughs, screenshots |
+
+### OCR bench
+
+`npm run bench:ocr` renders 42 Pokémon-style screens (original art and fonts) in four presentations, from a sharp 4× scale to a blurry phone screen, runs the OCR on each and scores it against the known text. On this bench, dialogue is read with 2.8 % character errors (Emulingo 1: 27.1 %), with no text invented on screens without any, and without blocking the page. See [bench/README.md](bench/README.md).
+
+## Hosting on GitHub Pages
+
+Emulingo is a static site, and the production build works from any folder (`https://<user>.github.io/<repo>/`) or domain.
+
+1. Push the repository to GitHub.
+2. In the repository, open **Settings › Pages** and set **Source** to **GitHub Actions**.
+3. Push to `main`. The deploy workflow lints, runs the unit tests, builds and publishes the site. Pull requests run the same checks without deploying.
+
+Any other static host works too: run `npm run build` and serve `dist/` over HTTPS. The build adds a Content Security Policy as a `<meta>` tag; hosts that can send headers may add stricter ones (such as `frame-ancestors`). The service worker only manages its own folder and its own caches, so it’s safe on a `github.io` address shared with other projects.
+
+## Licenses and credits
+
+Emulingo builds on:
+
+| Project | Used for | License |
+|---|---|---|
+| [EmulatorJS](https://github.com/EmulatorJS/EmulatorJS) 4.2.3 and its RetroArch cores | Running the games | GPL-3.0 (cores: their own licenses) |
+| [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) PP-OCRv5 models | Reading the screen | Apache-2.0 |
+| [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) | Running the models in the browser | MIT |
+| [Tesseract.js](https://github.com/naptha/tesseract.js) and Tesseract language data | The Classic reader | Apache-2.0 |
+| [nspell](https://github.com/wooorm/nspell) and the [Hunspell dictionaries](https://github.com/wooorm/dictionaries) | Correcting misread words | MIT; dictionaries per language |
+| [Lucide](https://lucide.dev) and [Feather](https://feathericons.com) | Icons, adapted | ISC and MIT |
+
+Translations come from Google Translate and MyMemory, third-party services with their own terms.
+
+The repository doesn’t include a license for Emulingo’s own code yet; until one is added, it isn’t licensed for reuse.
+
+Emulingo isn’t affiliated with or endorsed by Nintendo, The Pokémon Company, Sega or any game publisher. Game and system names are used only to describe compatibility.
 
 ## Roadmap
 
-- Android app (Capacitor wrapper) - planned once the web app is polished.
-- Anki `.apkg` export.
-- Better auto-detection for multi-language ROM patches.
-- Offline translation fallback.
+- Testing with real screen readers on desktop and mobile.
+- A built-in glossary of Pokémon names, so names aren’t translated literally.
+- Instant reading of Game Boy text from a learned tile cache.
+- Hosting the emulator alongside the app, so every game system works offline without being started online first.
+- An option for a self-hosted translation service (LibreTranslate) and offline translation.
+- Anki `.apkg` export and sync between devices through a backup file in your own cloud storage.
+- An Android app.

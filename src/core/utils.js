@@ -173,7 +173,7 @@ export function shuffle(arr) {
 }
 
 const segmenters = new Map();
-const WORD_RE = /[\p{L}\p{M}\p{N}]+(?:['’\-][\p{L}\p{M}\p{N}]+)*/gu;
+const WORD_RE = /[\p{L}\p{M}\p{N}]+(?:['’-][\p{L}\p{M}\p{N}]+)*/gu;
 
 // Word segments of a line for tap-to-look-up and dictionary seeding.
 // Intl.Segmenter splits scripts without spaces (Japanese, Chinese, Thai);

@@ -240,7 +240,7 @@ function parts(tok) {
 // "Ne In" -> "NeIn" (normalizeCase then makes it "NEIN").
 export function mergeSplitLetters(text, { lang = 'en', isKnown, kind = 'dialog' } = {}) {
   const known = isKnown || ((w) => isKnownWord(w, lang));
-  let toks = String(text || '').split(/\s+/u).filter(Boolean);
+  const toks = String(text || '').split(/\s+/u).filter(Boolean);
   if (!toks.length) return '';
   if (kind !== 'dialog' && toks.length >= 3) {
     const short = toks.every((t) => /^\p{L}{1,2}$/u.test(t));

@@ -199,7 +199,8 @@ function rowMarkup(e, { editing } = {}) {
     e.pending
       ? rowTextAction({ action: 'translate', label: 'Translate', name: `Translate ${name}`, icon: 'languages' })
       : rowAction({ action: 'edit', label: `Edit translation of ${name}`, iconMarkup: editIcon(18), attrs: { 'aria-expanded': editing ? 'true' : 'false' } }),
-    inDeck ? '' : rowAction({ action: 'add', label: `Add ${name} to deck`, icon: 'plus' }),
+    // an empty slot keeps the icons of every row in the same columns
+    inDeck ? html`<span class="icon-btn lv-action--placeholder" aria-hidden="true"></span>` : rowAction({ action: 'add', label: `Add ${name} to deck`, icon: 'plus' }),
     rowAction({ action: 'delete', label: `Delete ${name}`, icon: 'trash-2', danger: true }),
   ];
   const body = termLines({
@@ -313,7 +314,7 @@ async function translateRow(key, btn) {
     const follow = visible && focusWasOn(btn);
     list.updateRow(key, updated);
     if (follow) list.focusRow(key, 'edit');
-    announce(`${quoteTerm(updated.text)}: ${updated.translation}`);
+    announce([{ text: `${quoteTerm(updated.text)}:`, lang: updated.src }, { text: updated.translation, lang: tgt }]);
     renderStats();
   } catch (err) {
     if (btn.isConnected) setBusy(btn, false);

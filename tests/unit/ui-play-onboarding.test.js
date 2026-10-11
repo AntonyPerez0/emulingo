@@ -90,7 +90,10 @@ describe('onboarding card', () => {
     const src = box.querySelector('select');
     src.value = 'ja';
     src.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(box.textContent).toContain('basic engine');
+    expect(box.textContent).toContain('Japanese text is read with a separate reader');
+    src.value = 'ru';
+    src.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(box.textContent).toContain('Russian text is read with the Classic reader, so expect more misreads');
   });
 
   it('commit() from loading a game saves a chosen language quietly', () => {

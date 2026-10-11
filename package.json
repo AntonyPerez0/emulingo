@@ -23,6 +23,7 @@
     "e2e:learn": "node tests/e2e-learn/learn.e2e.mjs",
     "e2e:settings": "node tests/e2e-settings/settings.e2e.mjs",
     "e2e:play": "node tests/e2e-play/play.e2e.mjs",
+    "e2e:ocr": "node tests/e2e-qa/ocr-flow.e2e.mjs",
     "bench:ocr": "node bench/run.mjs",
     "bench:scenes": "node bench/preview.mjs",
     "bench:report": "node bench/report.mjs"

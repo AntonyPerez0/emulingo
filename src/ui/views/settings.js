@@ -83,23 +83,24 @@ const ID_FOR_KEY = Object.fromEntries(Object.entries(FIELDS).filter(([, f]) => f
 
 const OCR_ENGINES = [
   { value: 'auto', label: 'Automatic (recommended)' },
-  { value: 'neural', label: 'Neural (best for Latin-script games)' },
-  { value: 'tesseract', label: 'Classic (Tesseract)' },
+  { value: 'neural', label: 'Neural reader' },
+  { value: 'tesseract', label: 'Classic reader (Tesseract)' },
 ];
 
 // Shown in About until a view registers its own shortcuts (views mount lazily).
+// Labels match the views' own registrations, so the list reads the same before and after.
 const BASELINE_SHORTCUTS = [
   { scope: 'global', key: '?', label: 'Show keyboard shortcuts' },
   { scope: 'global', key: 'Escape', label: 'Stop speaking' },
   { scope: 'play', key: 't', label: 'Translate now' },
-  { scope: 'play', key: 'p', label: 'Pause auto-translate' },
+  { scope: 'play', key: 'p', label: 'Turn auto-translate on or off' },
   { scope: 'play', key: 'g', label: 'Return to the game' },
-  { scope: 'review', key: 'Space', label: 'Show the answer' },
-  { scope: 'review', key: '1', label: 'Again' },
-  { scope: 'review', key: '2', label: 'Hard' },
-  { scope: 'review', key: '3', label: 'Good' },
-  { scope: 'review', key: '4', label: 'Easy' },
-  { scope: 'review', key: 's', label: 'Speak the card' },
+  { scope: 'review', key: 'Space', label: 'Show answer' },
+  { scope: 'review', key: '1', label: 'Answer Again' },
+  { scope: 'review', key: '2', label: 'Answer Hard' },
+  { scope: 'review', key: '3', label: 'Answer Good' },
+  { scope: 'review', key: '4', label: 'Answer Easy' },
+  { scope: 'review', key: 's', label: 'Listen to the card' },
 ];
 const SCOPE_ORDER = ['global', 'play', 'review', 'dictionary', 'deck', 'settings'];
 const SCOPE_TITLES = { global: 'Everywhere', play: 'Play', review: 'Review', dictionary: 'Dictionary', deck: 'Deck', settings: 'Settings' };
@@ -401,8 +402,8 @@ function sourceNote(code) {
   const cjk = l.script === 'japanese' || l.script === 'han';
   const how = cjk
     ? `${l.name} text is read with a separate reader that downloads ${CJK_DOWNLOAD} the first time.`
-    : `${l.name} text is read with the Classic engine.`;
-  return html`<p class="settings-note settings-note--warning">${icon('alert-triangle', { size: 16 })}<span>${how} Expect more misreads than with Latin-script languages.</span></p>`;
+    : `${l.name} text is read with the Classic reader.`;
+  return html`<p class="settings-note settings-note--warning">${icon('alert-triangle', { size: 16 })}<span>${how} Expect more misreads than with languages written in the Latin alphabet.</span></p>`;
 }
 
 function voiceLabel(v) {
@@ -496,7 +497,7 @@ function readingSection(s) {
     ${selectField({
       id: 'set-ocr-engine',
       label: 'Text recognition',
-      hint: `Automatic uses the neural reader and switches to Classic if it can’t run on this device. The neural reader downloads ${NEURAL_DOWNLOAD} the first time.`,
+      hint: `Automatic uses the neural reader and switches to the Classic reader if it can’t run on this device. The neural reader downloads ${NEURAL_DOWNLOAD} the first time.`,
       options: OCR_ENGINES,
       value: s.ocrEngine,
       inline: true,

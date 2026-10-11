@@ -15,7 +15,7 @@ vi.mock('../../src/core/language.js', () => {
   const LANGUAGES = [
     { code: 'de', name: 'German', endonym: 'Deutsch', ocr: 'neural', google: 'de' },
     { code: 'en', name: 'English', endonym: 'English', ocr: 'neural', google: 'en' },
-    { code: 'ja', name: 'Japanese', endonym: '日本語', ocr: 'tesseract', google: 'ja' },
+    { code: 'ja', name: 'Japanese', endonym: '日本語', script: 'japanese', ocr: 'tesseract', google: 'ja' },
   ];
   const suggestTarget = (exclude) => env.browser.map((t) => t.split('-')[0]).find((c) => c !== exclude && LANGUAGES.some((l) => l.code === c)) || (exclude === 'en' ? 'de' : 'en');
   return { LANGUAGES, suggestTarget, langName: (c) => (LANGUAGES.find((l) => l.code === c) || {}).name || c };
@@ -48,7 +48,9 @@ describe('language chip', () => {
     expect(chip.hasAttribute('data-empty')).toBe(true);
     expect(chip.getAttribute('aria-haspopup')).toBe('dialog');
     store.set('source', 'de');
-    expect(chip.textContent.replace(/\s+/g, ' ').trim()).toBe('Languages: German→ to English');
+    expect(chip.querySelector('.lang-chip__long').textContent.replace(/\s+/g, ' ').trim()).toBe('Languages: German→ to English');
+    expect(chip.querySelector('.lang-chip__short').textContent).toBe('DE→EN');
+    expect(chip.querySelector('.lang-chip__short').getAttribute('aria-hidden')).toBe('true');
     expect(chip.hasAttribute('data-empty')).toBe(false);
   });
 
@@ -111,7 +113,7 @@ describe('language dialog', () => {
     expect(note.textContent.trim()).toBe('');
     src.value = 'ja';
     src.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(note.textContent).toContain('Japanese text is read with a basic engine');
+    expect(note.textContent).toContain('Japanese text is read with a separate reader');
     expect(src.getAttribute('aria-describedby')).toContain(note.id);
   });
 

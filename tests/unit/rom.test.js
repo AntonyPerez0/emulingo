@@ -223,6 +223,7 @@ describe('importRomFile', () => {
     const res = await importRomFile(fakeFile('big.gba', bytes));
     expect(res.persisted).toBe(false);
     expect(res.warnings).toContain('not-saved');
+    expect(res.warnings).toContain('storage-full');
     expect(res.bytes).toEqual(bytes);
     expect(res.rom.core).toBe('gba');
     expect(await listRoms()).toHaveLength(0);

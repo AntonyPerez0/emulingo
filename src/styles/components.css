@@ -1018,6 +1018,13 @@
   }
 }
 
+/* Short screens: the header scrolls away (layout.css), so no gap for it. */
+@media (max-width: 767.98px) and (max-height: 480px) {
+  .toast-region {
+    top: calc(var(--safe-top) + var(--space-2));
+  }
+}
+
 /* ---- Dialog (native <dialog> + showModal) ---- */
 
 .dialog {
@@ -1079,6 +1086,12 @@
   padding: var(--space-3) var(--space-6) var(--space-1);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* focusable when it scrolls with nothing to focus inside (dialog.js): ring inside, unclipped */
+.dialog__body:focus-visible {
+  outline-offset: -3px;
+  border-radius: var(--radius-md);
 }
 
 .dialog__text {
@@ -1392,6 +1405,9 @@ kbd,
 
   .range { height: 44px; }
   .switch-field__row { min-height: 48px; }
+
+  /* short labels ("All") would otherwise give a narrow target */
+  .segmented__option { min-width: 44px; }
 }
 
 /* ---- Forced colours ---- */

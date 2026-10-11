@@ -20,6 +20,7 @@
 import { idbGet, idbSet, idbKeys } from './idb.js';
 import { romKeys, resolveCore, detectCore, getRom, updateRom, markPlayed } from './rom.js';
 import { readSaveFiles, sameFiles, restoreSaveFiles, relocateFiles, isSavePath } from './saves.js';
+import { isFrozen } from './localStorage.js';
 
 export const EJS_VERSION = '4.2.3';
 export const EJS_DATA = `https://cdn.emulatorjs.org/${EJS_VERSION}/data/`;
@@ -35,6 +36,8 @@ const STALL_TIMEOUT_MS = 90_000; // no visible progress once EmulatorJS runs (bi
 const HARD_TIMEOUT_MS = 10 * 60_000;
 const POLL_MS = 250;
 const EJECT_SAVE_BUDGET_MS = 4000;
+const GAME_LOCK = 'emulingo:game';
+const GAME_LOCK_WAIT_MS = 2000; // a reload (Eject, another game) frees the old page's lock a moment later
 
 // Emulingo has its own pause, restart, save/load and fullscreen controls.
 // Hidden buttons also stop being invisible keyboard stops (A11Y-M1).
@@ -280,12 +283,14 @@ function settleStart(s, err) {
   }
 }
 
+const START_ERRORS = {
+  timeout: 'The emulator is taking too long to start. Check your internet connection and try again.',
+  busy: 'A game is already running in another Emulingo tab or window. Close it there, then select Try again.',
+  'loader-failed': 'Couldn’t load the emulator. Check your internet connection and try again.'
+};
+
 function failStart(s, code, detail) {
-  const message = code === 'timeout'
-    ? 'The emulator is taking too long to start. Check your internet connection and try again.'
-    : code === 'loader-failed'
-      ? 'Couldn’t load the emulator. Check your internet connection and try again.'
-      : friendlyStartError(detail);
+  const message = START_ERRORS[code] || friendlyStartError(detail);
   settleStart(s, new EmulatorError(code, message, detail || ''));
 }
 
@@ -348,7 +353,16 @@ function onEjsReady(s, onProgress) {
     // every battery save on the next reload.
     dropExitHandler(e);
     // put the battery-save mirror back before the core reads it at power-on
-    try { restoreSaveFiles(FS, s.sramMirror, { stem: s.rom.saveStem }); } catch { /* keep EmulatorJS's copy */ }
+    // (a save restored from a backup wins once, even over a newer copy)
+    const restored = !!(s.sramMirror && s.sramMirror.restored);
+    let written = [];
+    try { written = restoreSaveFiles(FS, s.sramMirror, { stem: s.rom.saveStem, force: restored }); } catch { /* keep EmulatorJS's copy */ }
+    if (restored) {
+      const { restored: _flag, ...mirror } = s.sramMirror;
+      s.sramMirror = mirror;
+      s.restoredPaths = written; // saved under another name: re-homed at start
+      idbSet(romKeys.sram(s.rom.id), mirror).catch(() => {});
+    }
   });
   const el = getGameElement();
   if (el && typeof MutationObserver === 'function') {
@@ -408,8 +422,31 @@ export function loadGame(rom, bytes, opts = {}) {
   return s.promise;
 }
 
+// One running game per browser profile: two tabs playing would overwrite
+// each other's battery saves (every flush syncs the whole save folder, so a
+// tab with an older save undoes the other's progress). Resolves false while
+// another tab or window holds the game; true without Web Locks support.
+function claimGameLock(waitMs = GAME_LOCK_WAIT_MS) {
+  const locks = globalThis.navigator && navigator.locks;
+  if (!locks || typeof locks.request !== 'function') return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let opts;
+    try { opts = { signal: AbortSignal.timeout(waitMs) }; } catch { opts = { ifAvailable: true }; }
+    locks.request(GAME_LOCK, opts, (lock) => {
+      resolve(!!lock);
+      // held for the rest of the page's life: EmulatorJS can't be torn down
+      return lock ? new Promise(() => {}) : undefined;
+    }).catch(() => resolve(false));
+  });
+}
+
 async function boot(s, bytes, opts) {
   s.hardTimer = setTimeout(() => failStart(s, 'timeout', ejsMessageText()), HARD_TIMEOUT_MS);
+  if (!(await claimGameLock())) {
+    failStart(s, 'busy');
+    return;
+  }
+  if (s.settled) return;
   // read the mirror now: EmulatorJS's mount event is synchronous
   try { s.sramMirror = (await withTimeout(idbGet(romKeys.sram(s.rom.id)), 3000)) || null; } catch { s.sramMirror = null; }
   if (s.settled) return;
@@ -443,7 +480,8 @@ function configure(s, bytes, opts) {
     EJS_gameName: rom.gameName || rom.title || 'game',
     EJS_startOnLoaded: true,
     EJS_volume: typeof opts.volume === 'number' ? Math.min(1, Math.max(0, opts.volume)) : 0.5,
-    EJS_color: '#22c55e',
+    // its popups put white text on this colour: #15803d keeps that at 5:1 (AA)
+    EJS_color: '#15803d',
     EJS_backgroundColor: '#000000',
     EJS_Buttons: { ...EJS_BUTTONS },
     // English menus without fetching a localisation file
@@ -482,6 +520,7 @@ function onGameStart(s) {
   }
   startTimers(s);
   installLifecycle(s);
+  watchSaveDatabase(s);
   markPlayed(s.rom.id).catch(() => {});
   settleStart(s, null);
   emit('start', { rom: s.rom, paused: !!e.paused });
@@ -497,8 +536,11 @@ function ensureSaveFileAtStart(s) {
   try {
     const path = g.getSaveFilePath();
     if (!isSavePath(path)) return;
-    try { g.FS.stat(path); return; } catch { /* missing */ }
-    const written = restoreSaveFiles(g.FS, relocateFiles(s.sramMirror, path));
+    // a backup's save (Replace) that the boot-time restore couldn't place
+    const forced = Array.isArray(s.restoredPaths) && !s.restoredPaths.includes(path);
+    s.restoredPaths = null;
+    if (!forced) { try { g.FS.stat(path); return; } catch { /* missing */ } }
+    const written = restoreSaveFiles(g.FS, relocateFiles(s.sramMirror, path), { force: forced });
     if (!written.includes(path)) return;
     g.loadSaveFiles();
     g.restart();
@@ -601,7 +643,7 @@ function writeMirror(s, files) {
 function flushSram() {
   const s = session;
   const g = gm();
-  if (!s || !s.started || !g) return null;
+  if (!s || !s.started || !g || storageErased()) return null;
   try { g.saveSaveFiles(); } catch { return null; }
   let files = null;
   try { files = readSaveFiles(g.FS, g.getSaveFilePath()); } catch { files = null; }
@@ -621,7 +663,7 @@ function syncSaveFolder(g, timeoutMs = 3000) {
 // both writes are done (true) or failed (false).
 export async function flushSaves() {
   const g = gm();
-  if (!isStarted() || !g) return false;
+  if (!isStarted() || !g || storageErased()) return false;
   const mirror = flushSram();
   const [m, f] = await Promise.all([mirror || Promise.resolve(true), syncSaveFolder(g)]);
   return m !== false && f;
@@ -698,6 +740,7 @@ async function storeManualState(s, state) {
 // Quick save to the manual slot. Resolves { savedAt }.
 export async function quickSave() {
   const g = requireStarted();
+  if (storageErased()) throw new EmulatorError('erased', 'Your data was erased. Reload the page to save again.');
   return storeManualState(session, captureState(g));
 }
 
@@ -748,7 +791,7 @@ function canAutoSave(s) {
 export async function autoSave() {
   const s = session;
   const g = gm();
-  if (!canAutoSave(s) || !g) return false;
+  if (!canAutoSave(s) || !g || storageErased()) return false;
   let state;
   try { state = captureState(g); } catch { return false; }
   const meta = saveMeta();
@@ -814,9 +857,41 @@ function stopTimers(s) {
   clearInterval(s.autoTimer);
 }
 
+// Erase everything (in this tab or another) froze storage until the page
+// reloads. Saving now would bring deleted games back: EmulatorJS persists
+// /data/saves on every write, so its own save timer stops too.
+function storageErased() {
+  const s = session;
+  if (!isFrozen() && !(s && s.savesDbGone)) return false;
+  if (s && !s.savingStopped) {
+    s.savingStopped = true;
+    stopTimers(s);
+    const e = ejs();
+    if (e && e.saveSaveInterval) { clearInterval(e.saveSaveInterval); e.saveSaveInterval = null; }
+  }
+  return true;
+}
+
+// EmulatorJS keeps its save database open for good, which would block
+// Erase everything (in this tab or another) from deleting it: let go when
+// asked (versionchange), and stop saving into a database that is going away.
+function watchSaveDatabase(s) {
+  let dbs = null;
+  try { dbs = gm().FS.filesystems.IDBFS.dbs; } catch { return; }
+  for (const db of Object.values(dbs || {})) {
+    if (!db || typeof db.addEventListener !== 'function') continue;
+    db.addEventListener('versionchange', () => {
+      // stays cached, closed: a later sync fails instead of recreating the database
+      try { db.close(); } catch { /* already closed */ }
+      s.savesDbGone = true;
+      storageErased();
+    });
+  }
+}
+
 function saveOnLeave() {
   const s = session;
-  if (!s || !s.started) return;
+  if (!s || !s.started || storageErased()) return;
   flushSram();
   if (now() - s.lastAutoSave > HIDDEN_AUTOSAVE_GAP_MS) autoSave().catch(() => {});
 }

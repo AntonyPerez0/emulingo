@@ -200,7 +200,13 @@ describe('connections', () => {
   it('deleteDatabase settles when blocked by another connection', async () => {
     const other = await rawOpen('/data/saves', 21, (db) => db.createObjectStore('FILE_DATA'));
     other.onversionchange = () => {}; // EmulatorJS keeps its filesystem open
-    expect(await deleteDatabase('/data/saves')).toBe('blocked');
+    expect(await deleteDatabase('/data/saves', 300)).toBe('blocked');
     other.close();
+  });
+
+  it('deleteDatabase waits for a blocking connection that lets go (another tab)', async () => {
+    const other = await rawOpen('/data/saves', 21, (db) => db.createObjectStore('FILE_DATA'));
+    other.onversionchange = () => setTimeout(() => other.close(), 50);
+    expect(await deleteDatabase('/data/saves', 2000)).toBe('deleted');
   });
 });

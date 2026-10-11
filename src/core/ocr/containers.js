@@ -119,11 +119,19 @@ function evaluate(reg, lab, col, W, H) {
     [y0 * W + x0 - 1, W, h, -1, x0 - 1],
     [y0 * W + x1 + 1, W, h, 1, W - 2 - x1]
   ];
-  const kinds = sides.map(([start, step, n, out, room]) => frameSide(col, start, step, n, out, room, bg));
+  // A smoothed (bilinear) picture puts a blended, low-contrast pixel
+  // between the interior and its frame line: on a side that fails, look
+  // one pixel further out (phone-sized GBA boxes were missed otherwise).
+  const rings = sides.map((sd) => {
+    const [start, step, n, out, room] = sd;
+    if (frameSide(col, start, step, n, out, room, bg)) return sd;
+    return room > 0 ? [start + out, step, n, out, room - 1] : sd;
+  });
+  const kinds = rings.map(([start, step, n, out, room]) => frameSide(col, start, step, n, out, room, bg));
   if (kinds.some((k) => !k)) return null;
   // patterned frames are symmetric: opposite sides repeat the same pattern
   // (a path between rows of tall grass is not)
-  if (kinds.includes('pattern') && !(sameSeq(col, sides[0], sides[1]) && sameSeq(col, sides[2], sides[3]))) return null;
+  if (kinds.includes('pattern') && !(sameSeq(col, rings[0], rings[1]) && sameSeq(col, rings[2], rings[3]))) return null;
   const ink = inkStats(col, W, x0, y0, w, h, bg);
   return { x: x0, y: y0, w, h, bg, fg: ink.fg, ...classify() };
 

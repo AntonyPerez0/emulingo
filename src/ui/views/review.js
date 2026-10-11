@@ -137,7 +137,7 @@ function pageMarkup() {
           </div>
         </form>
         <div class="review-card__tools" data-r="back-tools">
-          <button type="button" class="btn btn--ghost btn--sm" data-action="listen-back" data-r="listen-back">${icon('volume-2', { size: 16 })}<span class="btn__label">Listen</span></button>
+          <button type="button" class="btn btn--ghost btn--sm" data-action="listen-back" data-r="listen-back" aria-label="Listen to translation">${icon('volume-2', { size: 16 })}<span class="btn__label">Listen</span></button>
           <button type="button" class="btn btn--ghost btn--sm" data-action="edit" data-r="edit-btn" aria-expanded="false" aria-controls="review-edit">${editIcon(16)}<span class="btn__label">Edit</span></button>
           <button type="button" class="btn btn--sm" data-action="translate" data-r="translate" hidden>${icon('languages', { size: 16 })}<span class="btn__label">Translate</span></button>
         </div>
@@ -307,7 +307,7 @@ function renderBack(card) {
     el.back.dir = dirFor(card.tgt);
     el.back.classList.remove('review-card__back--empty');
   } else {
-    el.back.textContent = 'No translation yet';
+    el.back.textContent = 'Not translated yet';
     el.back.removeAttribute('lang');
     el.back.removeAttribute('dir');
     el.back.classList.add('review-card__back--empty');
@@ -338,7 +338,7 @@ function renderCard({ focus = true, announceIt = true, prefix = '' } = {}) {
   el.grades.hidden = true;
   el.reveal.hidden = false;
   if (focus) el.reveal.focus();
-  if (announceIt) announce(`${prefix}${el.pos.textContent}: ${card.text}`);
+  if (announceIt) announce([`${prefix}${el.pos.textContent}:`, { text: card.text, lang: card.src }]);
 }
 
 function renderDone() {
@@ -396,7 +396,7 @@ function reveal() {
   el.reveal.hidden = true;
   el.grades.hidden = false;
   $('[data-q="2"]', el.grades).focus();
-  announce(`Answer: ${card.translation || 'no translation yet'}`);
+  announce(card.translation ? ['Answer:', { text: card.translation, lang: card.tgt }] : 'Answer: no translation yet');
 }
 
 function grade(q) {
@@ -505,7 +505,7 @@ async function translateCard() {
       if (translating === card.id) translating = null;
       renderBack(updated);
       if (follow) el.editBtn.focus();
-      announce(`Translation: ${updated.translation}`);
+      announce(['Translation:', { text: updated.translation, lang: updated.tgt || card.tgt }]);
     }
   } catch (err) {
     toast((err && err.name === 'TranslateError' && err.message) || 'Couldn’t translate this card. Check your connection and try again.', { kind: 'error' });

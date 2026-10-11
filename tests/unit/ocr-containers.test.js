@@ -109,6 +109,20 @@ describe('findContainers on the 42 bench scenes', () => {
     expect(findContainers(scene('gba-oak-hello-en').img)[0]).toMatchObject({ x: 5, y: 116, w: 230, h: 39, bg: [255, 255, 255] });
   });
 
+  it('finds a box whose frame is one blended pixel away (smoothed phone picture)', () => {
+    // bilinear scaling leaves a light blend between the white interior and
+    // the frame line, too close to white to be the frame itself
+    const { img } = scene('gba-oak-hello-en');
+    const blend = [0xed, 0xf2, 0xfa];
+    fill(img, 5, 116, 1, 39, blend);
+    fill(img, 234, 116, 1, 39, blend);
+    fill(img, 5, 116, 230, 1, blend);
+    fill(img, 5, 154, 230, 1, blend);
+    const boxes = findContainers(img);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toMatchObject({ kind: 'dialog', x: 6, y: 117, w: 228, h: 37 });
+  });
+
   it('accepts patterned frames (Gen 2/3 frame options)', () => {
     // repaint the GBA dialog's two inner frame rings with a 2+2 px pattern
     const { img } = scene('gba-oak-hello-en');

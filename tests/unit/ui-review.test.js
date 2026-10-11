@@ -328,7 +328,7 @@ describe('translating a card', () => {
     resolveFetch({ ok: true, status: 200, json: async () => [[['Hello', 'Hallo']], null, 'de'] });
     await wait(20);
     expect(srs.findCard('Hallo', 'de', 'en').translation).toBe('Hello');
-    expect($('[data-r="back"]').textContent).toBe('No translation yet');
+    expect($('[data-r="back"]').textContent).toBe('Not translated yet');
     expect(document.activeElement).toBe(focused);
     vi.unstubAllGlobals();
   });

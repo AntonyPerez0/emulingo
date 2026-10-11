@@ -377,7 +377,7 @@ describe('autosave', () => {
     expect($('[data-source-note]').textContent).toContain('Japanese text is read with a separate reader that downloads about 17 MB the first time.');
     expect($('#set-spellcheck-hint').textContent).toContain('Not available for Japanese yet.');
     store.set('source', 'ko');
-    expect($('[data-source-note]').textContent).toContain('Korean text is read with the Classic engine. Expect more misreads');
+    expect($('[data-source-note]').textContent).toContain('Korean text is read with the Classic reader. Expect more misreads');
     store.set('source', 'fr');
     expect($('[data-source-note]').textContent).toBe('');
     store.set('waitForTyping', false);
@@ -522,8 +522,11 @@ describe('data actions', () => {
     view.show({});
     const text = $('[data-shortcuts]').textContent;
     expect(text).toContain('Swap screens');
-    expect(text).not.toContain('Pause auto-translate'); // Play's own list replaces the baseline
-    expect(text).toContain('Show the answer');
+    expect(text).not.toContain('Turn auto-translate on or off'); // Play's own list replaces the baseline
+    expect(text).toContain('Show answer');
+    // the baseline reads like the views' own registrations
+    expect(text).toContain('Answer Good');
+    expect(text).toContain('Listen to the card');
     off();
   });
 

@@ -100,6 +100,16 @@ describe('announce', () => {
     vi.advanceTimersByTime(150);
     expect(document.getElementById('sr-status').textContent).toBe('');
   });
+
+  it('marks game text and translations with their language (WCAG 3.1.2)', () => {
+    announce([{ text: 'Ein wildes TAUBSI erscheint!', lang: 'de' }, 'English:', { text: 'A wild PIDGEY appears!', lang: 'en' }]);
+    vi.advanceTimersByTime(150);
+    const region = document.getElementById('sr-status');
+    expect(region.textContent).toBe('Ein wildes TAUBSI erscheint! English: A wild PIDGEY appears!');
+    expect(Array.from(region.querySelectorAll('span[lang]')).map((s) => [s.lang, s.textContent])).toEqual([
+      ['de', 'Ein wildes TAUBSI erscheint!'], ['en', 'A wild PIDGEY appears!'],
+    ]);
+  });
 });
 
 describe('focusHeading', () => {
@@ -252,6 +262,22 @@ describe('installEmulatorFocusRelease', () => {
     key(game, 'Tab', { shiftKey: true });
     expect(document.activeElement.id).toBe('last');
     expect(ejs).not.toHaveBeenCalled();
+  });
+
+  it('Shift+Tab leaves for the control before the game when the toolbar follows it (no loop)', () => {
+    document.body.innerHTML = `
+      <a id="skip" href="#live">Skip</a>
+      <div id="game" tabindex="0"><canvas></canvas><button id="ejs-pause">Pause</button></div>
+      <div id="tb"><button id="first">Translate now</button><button id="last">More</button></div>`;
+    const game = document.getElementById('game');
+    off = installEmulatorFocusRelease({ gameEl: game, toolbarEl: document.getElementById('tb') });
+    game.focus();
+    const e = key(game, 'Tab', { shiftKey: true });
+    expect(document.activeElement.id).toBe('skip');
+    expect(e.defaultPrevented).toBe(true);
+    game.focus();
+    key(game, 'Tab');
+    expect(document.activeElement.id).toBe('first');
   });
 
   it('Escape calls onEscape (default: first toolbar control)', () => {

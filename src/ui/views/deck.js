@@ -179,11 +179,11 @@ function weekMarkup() {
         <span class="week-chart__day">${d.today ? 'Today' : d.label}</span>
       </div>`)}
     </div>
-    <table class="visually-hidden">
+    <div class="visually-hidden"><table>
       <caption>Cards reviewed per day, last 7 days</caption>
       <thead><tr><th scope="col">Day</th><th scope="col">Reviews</th></tr></thead>
       <tbody>${week.map((d) => html`<tr><th scope="row">${d.today ? `Today, ${d.long}` : d.long}</th><td>${d.count}</td></tr>`)}</tbody>
-    </table>`;
+    </table></div>`;
 }
 
 // Bar heights are set from script (no inline style attributes, CSP friendly).
@@ -214,7 +214,7 @@ function rowMarkup(c, { editing } = {}) {
     rowAction({ action: 'delete', label: `Delete ${name}`, icon: 'trash-2', danger: true }),
   ];
   const body = termLines({
-    text: c.text, src: c.src, translation: c.translation, tgt: c.tgt, emptyText: 'No translation yet',
+    text: c.text, src: c.src, translation: c.translation, tgt: c.tgt,
     editor: editing ? editForm({ key: c.id, term: c.text, value: c.translation, tgt: c.tgt }) : null,
   });
   return listRow({ key: c.id, body, meta, actions, className: editing ? 'lv-row--editing' : '' });

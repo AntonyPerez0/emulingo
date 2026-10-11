@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createLivePanel } from '../../src/ui/views/play/livepanel.js';
+import { ensureBehaviors } from '../../src/ui/components.js';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -57,6 +58,14 @@ describe('live panel', () => {
     expect(words.filter((w) => w.tabIndex === 0)).toHaveLength(1);
     expect(orig.querySelector('[role="group"]').getAttribute('aria-label')).toBe('Game text');
     expect(section.querySelector('.part__trans--pending').textContent).toContain('Translating');
+  });
+
+  it('keeps punctuation on its word so a line never starts with it', () => {
+    panel.showLive(capture({ dialog: { text: '¿Quieres luchar? Sí, “ahora”.', translation: '', status: 'pending' } }), { isNew: true });
+    const words = section.querySelector('.part--dialog [data-words]');
+    expect(words.textContent).toBe('¿Quieres luchar? Sí, “ahora”.');
+    expect([...words.querySelectorAll('.word-glue')].map((g) => g.textContent)).toEqual(['¿Quieres', 'luchar?', 'Sí,', '“ahora”.']);
+    expect([...words.querySelectorAll('button.word')].map((w) => w.textContent)).toEqual(['Quieres', 'luchar', 'Sí', 'ahora']);
   });
 
   it('moves between words with the arrow keys (roving tabindex)', () => {
@@ -197,6 +206,23 @@ describe('live panel', () => {
     expect(section.querySelector('[data-action="hint-switch"]')).toBe(null);
   });
 
+  it('shows the line re-read after Switch at once, though focus is in the panel', () => {
+    panel.showLive(capture({ id: 'de-1' }), { isNew: true });
+    panel.setHint({ type: 'language-mismatch', detected: 'en', expected: 'de' });
+    const sw = section.querySelector('[data-action="hint-switch"]');
+    sw.focus();
+    sw.click();
+    panel.setHint(null);
+    expect(section.contains(document.activeElement)).toBe(true);
+    panel.showLive(capture({ id: 'en-1', src: 'en', dialog: { text: 'Hello there!', translation: '', status: 'pending' } }), { isNew: true });
+    expect(section.querySelector('.capture').dataset.captureId).toBe('en-1');
+    expect(section.querySelector('[data-action="show-queued"]')).toBe(null);
+    // later lines wait as usual while focus stays in the panel
+    panel.showLive(capture({ id: 'en-2', src: 'en', dialog: { text: 'Next line', translation: '', status: 'pending' } }), { isNew: true });
+    expect(section.querySelector('.capture').dataset.captureId).toBe('en-1');
+    expect(section.querySelector('[data-action="show-queued"]')).not.toBe(null);
+  });
+
   it('maps scanner statuses onto the chip, with progress while setting up', () => {
     panel.setStatus({ state: 'setup', message: 'Downloading text recognition data — 2.0 of 13.0 MB', progress: 0.42 });
     const chip = section.querySelector('.status-chip');
@@ -244,6 +270,27 @@ describe('live panel', () => {
     expect(section.querySelector('.part__trans--error').textContent).toContain('Not translated');
     retry.click();
     expect(calls.retry).toEqual([['old', 'dialog', 'history']]);
+  });
+
+  it('marks Retry busy while an attempt runs, so a second press starts nothing', async () => {
+    ensureBehaviors(); // the app installs the aria-disabled click guard at boot
+    let finish = null;
+    const modes = [];
+    const own = createLivePanel(section, {
+      popover,
+      onRetryPart: (c, key, mode) => { modes.push(mode); return new Promise((r) => { finish = r; }); }
+    });
+    own.showHistory(capture({ id: 'old', dialog: { text: 'Alt', translation: '', status: 'pending' } }));
+    const retry = section.querySelector('[data-action="retry-part"]');
+    retry.click();
+    expect(retry.getAttribute('aria-busy')).toBe('true');
+    retry.click();
+    expect(modes).toEqual(['history']);
+    finish(false);
+    await flush();
+    await flush();
+    expect(retry.hasAttribute('aria-busy')).toBe(false);
+    expect(retry.hasAttribute('aria-disabled')).toBe(false);
   });
 
   it('offers Retry for a live part that came back empty', () => {

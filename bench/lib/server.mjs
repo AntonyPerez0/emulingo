@@ -23,13 +23,14 @@ export function freePort() {
 // entries: html files (relative to the repo) Vite should crawl for deps
 export async function startVite({ entries = ['bench/bench.html'], log = () => {} } = {}) {
   const { createServer } = await import('vite');
-  const port = await freePort();
+  // BENCH_PORT / BENCH_CACHE_DIR let concurrent harness runs stay apart
+  const port = Number(process.env.BENCH_PORT) || await freePort();
   const server = await createServer({
     root: REPO_ROOT,
     configFile: path.join(REPO_ROOT, 'vite.config.js'),
     // separate optimizer cache so a concurrently running `npm run dev` or
     // another harness never races on node_modules/.vite
-    cacheDir: path.join(REPO_ROOT, 'node_modules', '.vite-bench'),
+    cacheDir: process.env.BENCH_CACHE_DIR || path.join(REPO_ROOT, 'node_modules', '.vite-bench'),
     logLevel: 'warn',
     clearScreen: false,
     server: {

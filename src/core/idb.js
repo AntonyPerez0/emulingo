@@ -178,12 +178,15 @@ export function idbBatch(ops) {
   });
 }
 
-// Delete a whole database; settles on success, error AND blocked (another
-// connection, e.g. EmulatorJS's open save filesystem, finishes it on reload).
+// Delete a whole database; settles on success, error, or after timeoutMs
+// ('blocked' when another connection still holds it: other tabs are asked to
+// let go (versionchange) and may do so a moment later; otherwise the delete
+// finishes once they close, e.g. on reload).
 export function deleteDatabase(name, timeoutMs = 3000) {
   return new Promise((resolve) => {
     let req;
-    const timer = setTimeout(() => resolve('timeout'), timeoutMs);
+    let blocked = false;
+    const timer = setTimeout(() => resolve(blocked ? 'blocked' : 'timeout'), timeoutMs);
     const done = (state) => { clearTimeout(timer); resolve(state); };
     try {
       req = globalThis.indexedDB.deleteDatabase(name);
@@ -193,6 +196,6 @@ export function deleteDatabase(name, timeoutMs = 3000) {
     }
     req.onsuccess = () => done('deleted');
     req.onerror = () => done('error');
-    req.onblocked = () => done('blocked');
+    req.onblocked = () => { blocked = true; };
   });
 }

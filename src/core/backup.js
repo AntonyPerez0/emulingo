@@ -366,6 +366,13 @@ function findRom(roms, save) {
     roms.find((r) => r.name.toLowerCase() === save.rom.toLowerCase()) || null;
 }
 
+// A battery save restored in Replace mode must beat EmulatorJS's own copy,
+// which is newer by its timestamps: the emulator writes a flagged mirror back
+// at the next start whatever the dates say, then clears the flag.
+const valueToRestore = (s, overwrite) => (overwrite && s.kind === 'sram' && s.value && typeof s.value === 'object' && s.value.files
+  ? { ...s.value, restored: true }
+  : s.value);
+
 async function restoreSaves(saves, { overwrite }) {
   const roms = await romList();
   let linked = 0;
@@ -375,10 +382,10 @@ async function restoreSaves(saves, { overwrite }) {
     if (rom) {
       const key = `${s.kind}:${rom.id}${s.suffix}`;
       if (!overwrite && (await idbGet(key)) !== undefined) continue; // never clobber newer progress
-      await idbSet(key, s.value);
+      await idbSet(key, valueToRestore(s, overwrite));
       linked++;
     } else {
-      const rec = { kind: s.kind, rom: s.rom, suffix: s.suffix, value: s.value };
+      const rec = { kind: s.kind, rom: s.rom, suffix: s.suffix, value: valueToRestore(s, overwrite) };
       if (s.romId) rec.romId = s.romId;
       if (s.sha1) rec.sha1 = s.sha1;
       await idbSet(pendingKey(s), rec);

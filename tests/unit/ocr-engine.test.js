@@ -704,7 +704,9 @@ describe('tesseract helpers', () => {
 
   it('a hung recognition times out and the next read gets a fresh worker', async () => {
     const { created, loadModule } = controllableTesseract();
-    const t = createTesseract({ loadModule, timeouts: { start: 1000, read: 30 } });
+    // (the timeout also covers the second, answered read: keep it well above
+    // a flush() on a loaded machine)
+    const t = createTesseract({ loadModule, timeouts: { start: 1000, read: 250 } });
     await expect(t.recognizeLines([img()], 'deu')).rejects.toThrow(/stopped responding/);
     expect(created[0].terminate).toHaveBeenCalled();
     expect(t.language()).toBeNull();

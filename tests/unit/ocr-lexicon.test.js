@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   cleanLine, stripArrow, stripCursor, isHudToken, stripHudTokens, fixPokeWords, fixPkMn,
   fixInvertedPunctuation, normalizeCase, normalizeMenuCase, mergeSplitLetters, repairSpacing,
-  fixDigitsInWords, isCapsish, letterCount, alnumCount
+  fixDigitsInWords, isCapsish, letterCount, alnumCount, capitalizeSentenceStarts, fixBangMisread
 } from '../../src/core/ocr/lexicon.js';
 import { isKnownWord, gameWords, wordKey } from '../../src/core/ocr/vocab.js';
 
@@ -13,6 +13,11 @@ describe('stripArrow (OCR-02)', () => {
     expect(stripArrow('appeared! T')).toBe('appeared!');
     expect(stripArrow('appeared! v')).toBe('appeared!');
     expect(stripArrow('appeared!T')).toBe('appeared!');
+    // a still arrow on a static frame
+    expect(stripArrow('du gegen mich kämpfen? r')).toBe('du gegen mich kämpfen?');
+    expect(stripArrow('appeared! *')).toBe('appeared!');
+    expect(stripArrow('appeared!r')).toBe('appeared!');
+    expect(stripArrow('r')).toBe('');
   });
 
   it('removes glued arrow glyphs anywhere', () => {
@@ -76,7 +81,9 @@ describe('fixPokeWords (OCR-16)', () => {
     ['POKÉMON', 'POKéMON'], ['POKéMON', 'POKéMON'], ['POKEDEX', 'POKéDEX'], ['POKE BALL', 'POKé BALL'],
     ['POKE MART', 'POKé MART'], ['POKE FLUTE', 'POKé FLUTE'], ['POKE MON', 'POKéMON'],
     ['Pokemon', 'Pokémon'], ['pokemon', 'Pokémon'], ['Pokémon', 'Pokémon'], ['Pokedex', 'Pokédex'],
-    ['Poke Ball', 'Poké Ball'], ['PokeGear', 'PokéGear'], ['POKEGEAR', 'POKéGEAR']
+    ['Poke Ball', 'Poké Ball'], ['PokeGear', 'PokéGear'], ['POKEGEAR', 'POKéGEAR'],
+    // Tesseract on the bold font: P read as F, é as & £ €
+    ['FOK&MON', 'POKéMON'], ['FOKeMON', 'POKéMON'], ['FOK£DEX', 'POKéDEX'], ['POK€MON', 'POKéMON']
   ];
   for (const [input, out] of cases) {
     it(`${input} -> ${out}`, () => expect(fixPokeWords(input)).toBe(out));
@@ -156,6 +163,10 @@ describe('mergeSplitLetters', () => {
 describe('repairSpacing and digits', () => {
   it('turns glued commas into spaces and keeps decimals', () => {
     expect(repairSpacing('Hallo,Welt')).toBe('Hallo Welt');
+    // a comma read inside a known word (GBA font gap) goes; two words stay two
+    expect(repairSpacing('Bon,jour! Ravi', { lang: 'fr' })).toBe('Bonjour! Ravi');
+    expect(repairSpacing('come in,to the lab', { lang: 'en' })).toBe('come in to the lab');
+    expect(repairSpacing('Ja,nein', { lang: 'de' })).toBe('Ja nein');
     expect(repairSpacing('Oh!,wait')).toBe('Oh! wait');
     expect(repairSpacing('Price 1,50 now')).toBe('Price 1,50 now');
     expect(repairSpacing('Yes,1 more')).toBe('Yes, 1 more');
@@ -199,6 +210,43 @@ describe('fixInvertedPunctuation (es)', () => {
   it('only runs for Spanish in cleanLine', () => {
     expect(cleanLine('Hola! iBienvenido', { lang: 'es' })).toBe('Hola! ¡Bienvenido');
     expect(cleanLine('Say iHello', { lang: 'en' })).toBe('Say iHello');
+  });
+});
+
+describe('fixBangMisread', () => {
+  it('turns an "l" read for "!" back into "!" when only the stem is a word', () => {
+    expect(fixBangMisread('Hello therel Welcome to the')).toBe('Hello there! Welcome to the');
+    expect(fixBangMisread('Hallol Willkommen', { lang: 'de' })).toBe('Hallo! Willkommen');
+    expect(cleanLine('Hello therel', { kind: 'dialog', isLastLine: true })).toBe('Hello there!');
+  });
+
+  it('leaves real words alone', () => {
+    expect(fixBangMisread('I will Go')).toBe('I will Go');
+    expect(fixBangMisread('The ball')).toBe('The ball');
+    expect(fixBangMisread('Spiel Spaß', { lang: 'de' })).toBe('Spiel Spaß');
+    expect(fixBangMisread('there is', { lang: 'en' })).toBe('there is');
+    // short stems that are listed words: "Que", "da"
+    expect(fixBangMisread('Quel POKéMON veux-tu?', { lang: 'fr' })).toBe('Quel POKéMON veux-tu?');
+    expect(fixBangMisread('Un regalo dal Professor', { lang: 'it' })).toBe('Un regalo dal Professor');
+  });
+});
+
+describe('capitalizeSentenceStarts (squeezed capital umlauts)', () => {
+  it('restores a capital umlaut that starts a sentence', () => {
+    // the 8×8 Ö reads as ö (real emulator run, test ROM page 8)
+    expect(capitalizeSentenceStarts('Ärgere dich nicht! öffne das Menü.')).toBe('Ärgere dich nicht! Öffne das Menü.');
+    expect(capitalizeSentenceStarts('öffne das Menü.', { sentenceStart: true })).toBe('Öffne das Menü.');
+    expect(capitalizeSentenceStarts('Bonjour! à bientôt')).toBe('Bonjour! À bientôt');
+    expect(cleanLine('öffne das Menü.', { kind: 'dialog', lang: 'de', sentenceStart: true, isLastLine: true })).toBe('Öffne das Menü.');
+  });
+
+  it('leaves continuations, abbreviations, ellipses and plain letters alone', () => {
+    expect(capitalizeSentenceStarts('öffne das Menü.')).toBe('öffne das Menü.');
+    expect(capitalizeSentenceStarts('Nun... übrigens')).toBe('Nun... übrigens');
+    expect(capitalizeSentenceStarts('z.B. über den Fluss')).toBe('z.B. über den Fluss');
+    expect(capitalizeSentenceStarts('PROF. über')).toBe('PROF. über');
+    expect(capitalizeSentenceStarts('Hello. this is')).toBe('Hello. this is');
+    expect(cleanLine('über die Brücke.', { kind: 'dialog', lang: 'de' })).toBe('über die Brücke.');
   });
 });
 

@@ -23,6 +23,16 @@ export function createStage(stage, { onRetry = () => {}, onChooseAnother = () =>
   const overlay = stage.querySelector('[data-stage-overlay]');
   let state = 'idle';
 
+  // The controls under the game and the title above it line up with its
+  // edges (.play-controls, .play__header).
+  const host = stage.closest('.play') || stage.parentElement;
+  if (typeof ResizeObserver === 'function' && host) {
+    new ResizeObserver(() => {
+      const w = stage.offsetWidth;
+      if (w) host.style.setProperty('--stage-w', `${w}px`);
+    }).observe(stage);
+  }
+
   function show(markup) {
     render(overlay, markup);
     overlay.hidden = false;
@@ -101,6 +111,11 @@ export function createStage(stage, { onRetry = () => {}, onChooseAnother = () =>
   return {
     setAspect(ar) {
       stage.style.setProperty('--game-ar', String(aspectOf(ar)));
+    },
+    // Room under the picture for EmulatorJS's on-screen pad (touch
+    // devices), so it never covers the game's text box.
+    setTouchDock(on) {
+      stage.classList.toggle('stage--dock', !!on);
     },
     loading,
     progress: setLoadProgress,

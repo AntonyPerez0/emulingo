@@ -54,7 +54,9 @@ export function createOnboarding(container, { onDone = () => {} } = {}) {
   function note(code) {
     const l = langInfo(code);
     if (!l || l.ocr !== 'tesseract') return '';
-    return banner({ tone: 'warning', body: `${l.name} text is read with a basic engine, so expect more misreads than with languages that use the Latin alphabet.` });
+    // (same wording as Settings and the language dialog)
+    const how = l.script === 'japanese' || l.script === 'han' ? 'a separate reader that downloads the first time' : 'the Classic reader';
+    return banner({ tone: 'warning', body: `${l.name} text is read with ${how}, so expect more misreads than with languages written in the Latin alphabet.` });
   }
 
   function draw() {

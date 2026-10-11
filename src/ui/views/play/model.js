@@ -143,7 +143,13 @@ export function createSentenceTracker({ maxCaptures = 50 } = {}) {
     return out;
   }
 
-  return { take, forget: (id) => seen.delete(id), clear: () => seen.clear() };
+  // A sentence whose translation failed is offered again by the next take()
+  // of its line (after Retry, or when the line continues).
+  function release(captureId, sentence) {
+    seen.get(captureId)?.delete(normalizeForCompare(sentence));
+  }
+
+  return { take, release, forget: (id) => seen.delete(id), clear: () => seen.clear() };
 }
 
 /**

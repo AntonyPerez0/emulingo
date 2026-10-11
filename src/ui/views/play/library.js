@@ -21,6 +21,18 @@ export function sortRoms(list) {
   return [...list].sort((a, b) => (b.lastPlayed || b.added || 0) - (a.lastPlayed || a.added || 0));
 }
 
+// Loaded on demand: most imports have no restored saves waiting. Never
+// rejects (a failure only leaves the saves waiting for the next import).
+async function relinkRestoredSaves(record) {
+  try {
+    const { relinkSaves } = await import('../../../core/backup.js');
+    return await relinkSaves(record);
+  } catch (err) {
+    console.warn('[play] restored saves not linked', err);
+    return 0;
+  }
+}
+
 function systemShort(core) {
   const s = rom.systemFor(core);
   return s ? s.short : 'Game';
@@ -161,11 +173,17 @@ export function createLibrary(section, { onPlay = () => {}, beforeImport = () =>
       announce(message, { assertive: true });
       return;
     }
+    // Game saves restored from a backup before this game was added wait for
+    // it; they must be in place before the emulator reads them at start.
+    const relinked = res.persisted ? await relinkRestoredSaves(res.rom) : 0;
     setImporting(false);
     const title = res.rom.title || res.rom.name;
     if (res.duplicate) toast(`“${title}” is already in your library.`, { kind: 'info' });
+    if (relinked) toast(`Restored ${formatCount(relinked, 'game save')} from your backup.`, { kind: 'success' });
     if (res.warnings.includes('not-saved')) {
-      toast('Your device is out of space, so this game is only kept until you close the page.', { kind: 'warning' });
+      toast(res.warnings.includes('storage-full')
+        ? 'Your device is out of space, so this game is only kept until you close the page.'
+        : 'This browser isn’t letting Emulingo store games, so this one is only kept until you close the page.', { kind: 'warning' });
     } else if (res.warnings.includes('large')) {
       toast('This is a large game, so it may take a while to start.', { kind: 'info' });
     }

@@ -62,10 +62,11 @@ export function stripArrow(text, { isLastLine = true } = {}) {
   s = s.replace(/(\p{L})[†‡*]$/u, '$1!');
   s = s.replace(/\s*[†‡]$/u, '');
   if (isLastLine) {
-    s = s.replace(/\s+[TVv>]$/u, '');
-    s = s.replace(/([!?.…])[TVv]$/u, '$1');
+    // (a still, unblinking arrow also comes back as "r" or "*")
+    s = s.replace(/\s+[TVvr>*]$/u, '');
+    s = s.replace(/([!?.…])[TVvr*]$/u, '$1');
     // the arrow alone on the bottom row (a one-line page): no line is just this
-    if (/^(?:[TVv>]|L\.)$/u.test(s.trim())) s = '';
+    if (/^(?:[TVvr>*]|L\.)$/u.test(s.trim())) s = '';
   }
   return s;
 }
@@ -124,7 +125,8 @@ export function stripHudTokens(text) {
 // Suffixes written without a space in the games (POKéMON, POKéDEX); the
 // others keep whatever spacing was read (POKé BALL, POKé MART).
 const POKE_JOINED = new Set(['mon', 'dex', 'gear', 'nav', 'com', 'block']);
-const POKE_RE = /(^|[^\p{L}\p{N}])(pok)([eéèēbo0ÉÈĒ]?)(\s?)(mon|dex|gear|nav|com|balls|ball|mart|center|centre|flute|doll|block)(?![\p{L}\p{N}])/giu;
+// (Tesseract reads the bold pixel P as F and é as &, £ or €: "FOK&MON")
+const POKE_RE = /(^|[^\p{L}\p{N}])(pok|fok)([eéèēbo0ÉÈĒ&£€]?)(\s?)(mon|dex|gear|nav|com|balls|ball|mart|center|centre|flute|doll|block)(?![\p{L}\p{N}])/giu;
 
 // The PK and MN ligature tiles ("PkMr", "PKMN", "Pk Mn").
 export function fixPkMn(text) {
@@ -147,6 +149,19 @@ export function fixPokeWords(text) {
     return pre + 'Poké' + space + tail;
   });
   return fixPkMn(s);
+}
+
+// "!" read as "l" (or "1", "I", "|") at the end of a word before the next
+// sentence or the line end: "Hello therel Welcome" -> "there!". Only when
+// the word without it is listed and the word with it is not, and the stem
+// has 4+ letters: the vocabulary is short, and "Quel", "dal", "sul" are
+// words whose short stems are listed.
+export function fixBangMisread(text, { lang = 'en', isKnown } = {}) {
+  const known = isKnown || ((w) => isKnownWord(w, lang));
+  return String(text || '').replace(/(^|[^\p{L}\p{N}])(\p{L}{4,})[l1I|](?=\s+[\p{Lu}¡¿"“„]|$)/gu, (m, pre, stem) => {
+    const last = m.slice(-1);
+    return known(stem) && !known(stem + last) ? `${pre}${stem}!` : m;
+  });
 }
 
 // Abbreviations whose full stop does not end a sentence ("PROF. OAK").
@@ -186,6 +201,29 @@ export function fixInvertedPunctuation(text, { sentenceStart = false } = {}) {
     // the mark can open mid-sentence: "Oye, ¿quieres luchar?"
     if (/[¡¿]/u.test(s.slice(at, at + end.index))) continue;
     s = s.slice(0, at) + (end[0] === '!' ? '¡' : '¿') + s.slice(at);
+  }
+  return s;
+}
+
+// Capital umlauts and accented capitals squeezed into an 8×8 tile (Ö drawn
+// as a small O with dots above) are read as lowercase: "nicht! öffne". Game
+// text starts its sentences with a capital, so a lowercase accented letter
+// right after a sentence end (or at a known sentence start) is a misread
+// capital. Plain letters are left alone, and so is text after an ellipsis
+// or an abbreviation ("z.B. über").
+const SQUASHED = /^[äöüàáâèéêëìíîïòóôùúûñç]/u;
+export function capitalizeSentenceStarts(text, { sentenceStart = false } = {}) {
+  let s = String(text || '');
+  const upAt = (i) => {
+    if (SQUASHED.test(s.slice(i))) s = s.slice(0, i) + s[i].toUpperCase() + s.slice(i + 1);
+  };
+  if (sentenceStart) upAt(/^[^\p{L}\p{N}]*/u.exec(s)[0].length);
+  const re = /(^|[^.])([.!?]|[!?]{2,3})["'”’»)]*\s+[¡¿"“„«(]*/gu;
+  let m;
+  while ((m = re.exec(s))) {
+    const head = s.slice(0, m.index + m[0].indexOf('.') + 1);
+    if (m[2] === '.' && (ABBREVIATION.test(head) || /\p{L}\.\p{L}\.$/u.test(head))) continue;
+    upAt(m.index + m[0].length);
   }
   return s;
 }
@@ -270,11 +308,16 @@ export function mergeSplitLetters(text, { lang = 'en', isKnown, kind = 'dialog' 
 
 // Pixel fonts read spaces as commas, and glued commas appear everywhere.
 // Real game text always has a space after sentence punctuation; decimals
-// like "1,50" are digit-digit. Also drops the stray space OCR puts before
-// closing punctuation ("erscheint !"), except in French where it is the
-// typographic norm before ! ? ; :.
-export function repairSpacing(text, { lang } = {}) {
-  let s = String(text || '')
+// like "1,50" are digit-digit. A comma read inside a known word (the GBA
+// font's wide "n j" gap: "Bon,jour") is dropped instead. Also drops the
+// stray space OCR puts before closing punctuation ("erscheint !"), except
+// in French where it is the typographic norm before ! ? ; :.
+export function repairSpacing(text, { lang, isKnown } = {}) {
+  const known = isKnown || (lang ? (w) => isKnownWord(w, lang) : null);
+  let s = String(text || '');
+  // (two words that also form one, "in,to", keep the space: it may be one)
+  if (known) s = s.replace(/(\p{L}+),(\p{L}+)/gu, (m, a, b) => (known(a + b) && !(known(a) && known(b)) ? a + b : m));
+  s = s
     .replace(/([?.!…]),(?=\S)/gu, '$1 ')
     .replace(/(\d),(?=\p{L})/gu, '$1 ')
     .replace(/(\p{L}),(?=\p{L})/gu, '$1 ')
@@ -309,11 +352,13 @@ export function cleanLine(text, { kind = 'dialog', isLastLine = false, lang = 'e
   if (kind !== 'dialog') s = stripHudTokens(s);
   s = stripEdgeJunk(s, { kind });
   if (isLastLine && kind === 'dialog') s = stripGluedArrow(s, isKnown || ((w) => isKnownWord(w, lang)));
-  s = repairSpacing(s, { lang });
+  if (kind === 'dialog') s = fixBangMisread(s, { lang, isKnown });
+  s = repairSpacing(s, { lang, isKnown });
   s = fixDigitsInWords(s);
   s = mergeSplitLetters(s, { lang, isKnown, kind });
   s = normalizeCase(fixPkMn(s));
   s = fixPokeWords(s);
   if (lang === 'es') s = fixInvertedPunctuation(s, { sentenceStart });
+  if (kind === 'dialog') s = capitalizeSentenceStarts(s, { sentenceStart });
   return s.replace(/\s+/gu, ' ').trim();
 }

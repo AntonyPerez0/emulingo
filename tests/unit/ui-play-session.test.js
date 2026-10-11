@@ -13,6 +13,7 @@ const fake = vi.hoisted(() => ({ scanner: null, spoken: [], translations: new Ma
 vi.mock('../../src/core/translate.js', () => ({
   translate: async (text, src, tgt) => {
     fake.translateCalls.push(text);
+    if (fake.offline) throw new Error('offline');
     if (fake.translations.has(text)) return fake.translations.get(text);
     return `[${tgt}] ${text}`;
   },
@@ -31,10 +32,14 @@ vi.mock('../../src/core/ocr/engine.js', () => ({
   createOcrEngine: () => ({ setPreference() {}, dispose() {}, prepare: async () => {}, supports: () => 'neural' })
 }));
 vi.mock('../../src/core/ocr/correct.js', () => ({
-  correctText: async (t) => t, hasDictionary: () => false, warmSpeller: async () => {}
+  correctText: async (t) => `${t} (corrected)`,
+  hasDictionary: () => !!fake.dictionary,
+  warmSpeller: async (lang) => { fake.warmed = lang; },
+  getCorrector: () => ({ isReady: () => !!fake.spellerReady })
 }));
 vi.mock('../../src/core/scanner.js', () => ({
-  createScanner: () => {
+  createScanner: (deps) => {
+    fake.deps = deps;
     const listeners = { status: new Set(), capture: new Set(), update: new Set() };
     const s = {
       resets: 0,
@@ -94,6 +99,7 @@ describe('OCR session', () => {
     fake.spoken.length = 0;
     fake.translateCalls.length = 0;
     fake.translations.clear();
+    fake.offline = false;
     store.set('source', 'de');
     store.set('target', 'en');
     store.set('autoAdd', 'sentences');
@@ -163,6 +169,28 @@ describe('OCR session', () => {
     session.dispose();
   });
 
+  it('translates and cards a sentence after a failed first try, counting it once', async () => {
+    fake.offline = true;
+    const c = capture('Hallo! Wie geht es dir?');
+    fake.scanner.emit('capture', c);
+    await wait(10);
+    expect(srs.cards()).toHaveLength(0);
+    const pending = dictionary.search({ kind: 'line', tgt: 'en' }).items;
+    expect(pending.map((e) => [e.text, e.count, e.pending])).toEqual(expect.arrayContaining([['Hallo!', 1, true]]));
+    // still offline: the line updates, nothing is counted twice
+    fake.scanner.emit('update', { ...c, dialog: { ...c.dialog, status: 'error' } });
+    await wait(10);
+    expect(dictionary.search({ kind: 'line', tgt: 'en' }).items.find((e) => e.text === 'Hallo!').count).toBe(1);
+    // back online, Retry succeeds and the scanner sends the line again
+    fake.offline = false;
+    fake.scanner.emit('update', { ...c, dialog: { ...c.dialog, translation: 'Hello! How are you?', status: 'done' } });
+    await wait(10);
+    expect(srs.cards().map((x) => x.text).sort()).toEqual(['Hallo!', 'Wie geht es dir?']);
+    const line = dictionary.search({ kind: 'line', tgt: 'en' }).items.find((e) => e.text === 'Hallo!');
+    expect(line).toMatchObject({ count: 1, translation: '[en] Hallo!' });
+    session.dispose();
+  });
+
   it('adds no cards when auto-add is off', async () => {
     store.set('autoAdd', 'off');
     fake.scanner.emit('capture', capture('Hallo! Wie geht es dir?'));
@@ -203,6 +231,24 @@ describe('OCR session', () => {
     const next = await session.retry(failed, 'dialog', 'history');
     expect(next.dialog).toEqual({ text: 'Tschüss!', translation: '[en] Tschüss!', status: 'done' });
     expect(history.get(c.id).dialog.translation).toBe('[en] Tschüss!');
+    session.dispose();
+  });
+});
+
+describe('OCR session: spell-check', () => {
+  it('shows lines as read while the dictionary loads, and corrects once it is ready', async () => {
+    store.set('spellCheck', true);
+    fake.dictionary = true;
+    fake.spellerReady = false;
+    const session = createOcrSession();
+    await expect(fake.deps.correct('Willkommer', 'de')).rejects.toThrow(/loading/);
+    expect(fake.warmed).toBe('de');
+    fake.spellerReady = true;
+    await expect(fake.deps.correct('Willkommer', 'de')).resolves.toBe('Willkommer (corrected)');
+    store.set('spellCheck', false);
+    await expect(fake.deps.correct('Willkommer', 'de')).resolves.toBe('Willkommer');
+    store.set('spellCheck', true);
+    fake.dictionary = false;
     session.dispose();
   });
 });

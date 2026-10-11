@@ -27,6 +27,7 @@ export const SUITES = [
   { id: 'learn', files: ['tests/e2e-learn/learn.e2e.mjs'], about: 'Review, Deck and Dictionary views' },
   { id: 'settings', files: ['tests/e2e-settings/settings.e2e.mjs'], about: 'Settings view' },
   { id: 'play', files: ['tests/e2e-play/play.e2e.mjs'], emulator: true, about: 'Play view with the real emulator' },
+  { id: 'ocr', files: ['tests/e2e-qa/ocr-flow.e2e.mjs'], emulator: true, about: 'OCR + translation on the test ROM: latency, duplicates, cards, HUD, language switch, Tesseract, phone' },
 ];
 
 function parseList(argv, name) {

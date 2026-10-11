@@ -50,7 +50,10 @@ export const BACKOFF_MS = Object.freeze([60000, 300000, 900000]);
 export const DET_PARAMS = Object.freeze({ thresh: 0.3, boxThresh: 0.5, unclipRatio: 2.0 });
 // same-row det boxes are merged before recognition (see models.mergeLineBoxes)
 export const MERGE_OPTS = Object.freeze({ minOverlap: 0.5, maxGap: 1.5, minHeightRatio: 0.5 });
-export const MIN_SCORE = Object.freeze({ lines: 0.5, container: 0.5, free: 0.6 });
+// Tesseract's confidences run lower than the neural engine's for the same
+// quality: correct pixel-font lines often score 0.3–0.5 (bench: "ITEM"
+// 0.43, "SAVE" 0.40), and dropping one loses half a page.
+export const MIN_SCORE = Object.freeze({ lines: 0.5, container: 0.5, free: 0.6, tesseract: 0.3 });
 // recognition input: squeeze wide tile fonts (models.autoAspect), batch
 // strips of similar width (models.planRecBatches)
 export const REC_PARAMS = Object.freeze({ recAspect: 'auto', recBatch: 6, recPadRatio: 1.15 });
@@ -474,7 +477,7 @@ export function createOcrEngine({
     if (!tessLang) throw new Error('The Classic reader isn’t available for this language.');
     if (job.mode === 'lines') {
       const res = await tess.recognizeLines(job.strips.map((s) => s.img), tessLang);
-      return job.strips.map((s, i) => stripLine(res[i], { width: s.img.width, height: s.img.height, k: s.k || job.k || 1, offset: s.offset }));
+      return job.strips.map((s, i) => stripLine(res[i], { width: s.img.width, height: s.img.height, k: s.k || job.k || 1, offset: s.offset }, MIN_SCORE.tesseract));
     }
     let img = job.img || job.image;
     // local detection finds the lines; Tesseract reads each one (PSM 7)

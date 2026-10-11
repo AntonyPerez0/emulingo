@@ -123,6 +123,27 @@ describe('openDialog', () => {
     expect(await d.closed).toBeUndefined();
   });
 
+  it('makes a body that scrolls with nothing focusable inside keyboard-focusable (WCAG 2.1.1)', () => {
+    const sh = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'scrollHeight');
+    const ch = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollHeight', { configurable: true, get() { return this.classList.contains('dialog__body') ? 900 : 0; } });
+    Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return this.classList.contains('dialog__body') ? 200 : 0; } });
+    try {
+      const d = openDialog({ title: 'Keyboard shortcuts', content: html`<dl><dt>T</dt><dd>Translate now</dd></dl>` });
+      const body = dlg().querySelector('.dialog__body');
+      expect(body.tabIndex).toBe(0);
+      expect(body.getAttribute('role')).toBe('region');
+      expect(document.getElementById(body.getAttribute('aria-labelledby')).textContent).toBe('Keyboard shortcuts');
+      d.close();
+      // a scrolling body with a field inside needs no extra tab stop
+      openDialog({ title: 'Form', content: html`<input id="f" aria-label="Name">` });
+      expect(dlg().querySelector('.dialog__body').hasAttribute('tabindex')).toBe(false);
+    } finally {
+      if (sh) Object.defineProperty(window.HTMLElement.prototype, 'scrollHeight', sh); else delete window.HTMLElement.prototype.scrollHeight;
+      if (ch) Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', ch); else delete window.HTMLElement.prototype.clientHeight;
+    }
+  });
+
   it('accepts a DOM node as content and escapes string titles', () => {
     const node = document.createElement('p');
     node.textContent = 'node content';

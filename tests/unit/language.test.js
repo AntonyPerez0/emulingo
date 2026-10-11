@@ -94,3 +94,21 @@ describe('lookups', () => {
     expect(suggestTarget(null, [])).toBe('en');
   });
 });
+
+describe('LANGUAGES agree with the OCR engine and the spell checker', () => {
+  it('flags Hunspell exactly for the languages with a bundled dictionary', async () => {
+    const { DICTS, hasDictionary } = await import('../../src/core/ocr/correct.js');
+    for (const l of LANGUAGES) expect(hasDictionary(l.code), l.code).toBe(l.hunspell);
+    expect(Object.keys(DICTS).every(isLang)).toBe(true);
+  });
+
+  it('routes every language to a reader that matches its table entry', async () => {
+    const { routeFor } = await import('../../src/core/ocr/engine.js');
+    for (const l of LANGUAGES) {
+      const r = routeFor(l.code);
+      expect(r.tess, l.code).toBe(l.tess);
+      if (l.ocr === 'neural') expect(r, l.code).toMatchObject({ kind: 'latin', rec: 'latin' });
+      else expect(['cjk', 'tesseract'], l.code).toContain(r.kind);
+    }
+  });
+});

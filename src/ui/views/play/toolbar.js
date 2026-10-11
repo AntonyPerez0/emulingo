@@ -80,32 +80,61 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
 
   const btn = (action) => el.querySelector(`.tb[data-action="${action}"]`);
   const item = (action) => el.querySelector(`#play-more-${action}`);
-  // When the toolbar is narrow, these move into More (first the audio and
-  // fullscreen pair, then the save slots). `hidden`, not CSS, so the menu's
-  // keyboard navigation skips the copies that aren't in use.
+  // The toolbar is as wide as the game. Until everything fits on one row,
+  // these steps apply in turn: the audio and fullscreen pair moves into
+  // More, Auto-translate drops its label, then the save slots move too.
+  // `hidden`, not CSS, so the menu's keyboard navigation skips the copies
+  // that aren't in use.
   const TIERS = [
-    { below: 660, actions: ['mute', 'fullscreen'] },
-    { below: 500, actions: ['quick-save', 'quick-load'] }
+    { actions: ['mute', 'fullscreen'] },
+    { compact: true },
+    { actions: ['quick-save', 'quick-load'] }
   ];
 
   // until there is a width to go by, the controls stay in the toolbar
-  for (const a of TIERS.flatMap((t) => t.actions)) {
+  for (const a of TIERS.flatMap((t) => t.actions || [])) {
     const m = item(a);
     if (m) m.hidden = true;
   }
 
+  function applyTiers(level) {
+    TIERS.forEach((tier, i) => {
+      const on = i < level;
+      if (tier.compact) el.classList.toggle('play-toolbar--compact', on);
+      for (const a of tier.actions || []) {
+        const b = btn(a);
+        const m = item(a);
+        if (b && b.hidden !== on) b.hidden = on;
+        if (m && m.hidden !== !on) m.hidden = !on;
+      }
+    });
+  }
+
+  // one row: the last visible control sits level with the first
+  function fitsOneRow() {
+    const shown = Array.from(el.children).filter((c) => c.offsetParent !== null && c.offsetWidth > 0);
+    if (shown.length < 2) return true;
+    const first = shown[0].getBoundingClientRect();
+    const last = shown[shown.length - 1].getBoundingClientRect();
+    return last.top < first.bottom - 4;
+  }
+
+  // Steps change only when the width does: wider undoes them one at a time
+  // while everything still fits, narrower adds them until it does.
+  let level = 0;
+  let lastWidth = 0;
   function layout() {
     const width = el.clientWidth;
     if (!width) return; // hidden: keep the last layout
-    for (const tier of TIERS) {
-      const inMenu = width < tier.below;
-      for (const a of tier.actions) {
-        const b = btn(a);
-        const m = item(a);
-        if (b && b.hidden !== inMenu) b.hidden = inMenu;
-        if (m && m.hidden !== !inMenu) m.hidden = !inMenu;
+    if (width > lastWidth) {
+      while (level > 0) {
+        applyTiers(level - 1);
+        if (!fitsOneRow()) { applyTiers(level); break; }
+        level--;
       }
     }
+    lastWidth = width;
+    while (level < TIERS.length && !fitsOneRow()) applyTiers(++level);
   }
   layout();
   // Changing the buttons resizes the toolbar: lay out in the next frame, not
@@ -197,6 +226,11 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
       savedLabel();
     },
     button: btn,
+    // Drop a control this browser can't honour (e.g. Fullscreen on iPhone
+    // Safari), so it isn't a button that does nothing. Both copies go.
+    remove(action) {
+      for (const node of [btn(action), item(action)]) if (node) node.remove();
+    },
     focusTranslate() {
       const b = btn('translate-now');
       if (b) b.focus();

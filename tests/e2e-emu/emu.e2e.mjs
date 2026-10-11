@@ -151,7 +151,7 @@ async function main() {
     check('EmulatorJS exit handler removed after start', r1.exitHandlers === 0, { exitHandlers: r1.exitHandlers });
     check('game element is keyboard reachable (tabindex 0)', r1.tabindex === '0', { tabindex: r1.tabindex });
     check('EJS toolbar trimmed (no exit/save/load/restart/pause)', !r1.visibleEjsButtons.some((b) => /exit|save|load|restart|pause|cache|netplay/i.test(b)), { visible: r1.visibleEjsButtons });
-    check('config: pinned data path, accent, volume, File', r1.globals.data === 'https://cdn.emulatorjs.org/4.2.3/data/' && r1.globals.color === '#22c55e' && r1.globals.gameUrlIsFile, r1.globals);
+    check('config: pinned data path, accent, volume, File', r1.globals.data === 'https://cdn.emulatorjs.org/4.2.3/data/' && r1.globals.color === '#15803d' && r1.globals.gameUrlIsFile, r1.globals);
     check('scoped preserveDrawingBuffer: canvas readback has the frame', r1.readback.ok && r1.readback.attrs && r1.readback.attrs.preserveDrawingBuffer === true, r1.readback);
     check('test ROM renders its counter', r1.screen.rendered && r1.screen.w === 160 && r1.screen.n === (r1.sram0 & 31), { screen: r1.screen, sram0: r1.sram0 });
 

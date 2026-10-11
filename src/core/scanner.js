@@ -29,10 +29,21 @@ const SETTLE_MS = 400;
 const SETTLE_QUICK_MS = 250;
 const FREE_SETTLE_MS = 700;
 const FREE_INTERVAL_MS = 3000;
+// A whole-screen read takes 1–2 s and the next page's read waits for it:
+// text outside the boxes is read once the boxes have been still this long
+// (the player is reading, not paging through dialogue).
+const BOX_QUIET_MS = 2000;
 const IDLE_POLL_MS = 1000;
 const CORRECT_BELOW = 0.85;
+const TESSERACT_MIN_SCORE = 0.3;
 const CORRECT_BUDGET_MS = 2000;
 const RETRY_MS = 3000;
+// translate() rejects with { code: 'offline' | 'rate-limited' | 'failed' }
+const TRANSLATE_ERRORS = {
+  offline: 'You’re offline. Reconnect, then select Retry.',
+  'rate-limited': 'The translation service is busy. Wait a minute, then select Retry.',
+  failed: 'Couldn’t translate. Check your connection, then select Retry.'
+};
 const MAX_SIDE = 1280;
 const LRU_SIZE = 64;
 const MEMO_SIZE = 400;
@@ -143,7 +154,7 @@ export function createScanner(deps) {
   const screen = new Map();         // containerKey -> { container, hash, regions, processedHash, ghost }
   const correctionMemo = new Map();
   const translationMemo = new Map();
-  const inflight = new Set();       // `${captureId}|${regionKey}|${text}` being translated
+  const inflight = new Map();       // `${captureId}|${regionKey}|${text}` -> settles when its translation does
   const captures = new Map();       // recent capture records by id (for retries and continuations)
   const stats = { reads: 0, cacheHits: 0, lastReadMs: 0, engine: null };
 
@@ -179,9 +190,10 @@ export function createScanner(deps) {
   let current = null;               // the capture on show (internal record)
   let composeHadContent = false;
   let translating = 0;
-  let translationError = null;      // { id, key, retrying }
+  let translationError = null;      // { id, key, retrying, code }
   let dialogChecks = 0;
   let mismatchStreak = 0;
+  let mismatchLetters = 0;          // letters of new dialog text in the streak
   let hint = null;
   let status = { state: 'off', message: 'Live translation is off', progress: null, hint: null };
   let captureSeq = 0;
@@ -227,6 +239,7 @@ export function createScanner(deps) {
       hint = null;
       dialogChecks = 0;
       mismatchStreak = 0;
+      mismatchLetters = 0;
       reset();
     } else if (prev.target !== next.target) {
       const shown = current;
@@ -279,7 +292,7 @@ export function createScanner(deps) {
         state: 'error',
         message: translationError.retrying
           ? 'Couldn’t translate. Trying again in 3 seconds…'
-          : 'Couldn’t translate. Check your connection, then select Retry.'
+          : (TRANSLATE_ERRORS[translationError.code] || TRANSLATE_ERRORS.failed)
       };
     }
     return { state: 'watching', message: 'Watching for text' };
@@ -602,12 +615,13 @@ export function createScanner(deps) {
 
   const outsideKey = () => `outside|${(outside.rects || []).map((r) => [r.x, r.y, r.w, r.h].join(',')).join(';')}|${outside.hash}`;
 
-  // Low priority: only once every box is read and the rest of the screen
-  // has been still for 700 ms (the caller allows one read per 3 s).
+  // Low priority: only once every box is read and has been still for 2 s,
+  // and the rest of the screen for 700 ms (the caller allows one read per 3 s).
   function shouldReadOutside(now) {
     if (outside.hash === null || outside.hash === outside.readHash) return false;
     if (now - outside.since < FREE_SETTLE_MS) return false;
-    return !lastContainers.some((c) => screen.get(c.key) && screen.get(c.key).processedHash !== c.hash);
+    return !lastContainers.some((c) => c.settledMs < BOX_QUIET_MS ||
+      (screen.get(c.key) && screen.get(c.key).processedHash !== c.hash));
   }
 
   function readOutside(frame, s) {
@@ -646,7 +660,9 @@ export function createScanner(deps) {
   // are not memoised, so a later pass can still correct them.
   async function processLines(raw, c, frame, s) {
     const lang = s.source;
-    const regions = buildRegions(raw.lines, c, { w: frame.w, h: frame.h }, { lang });
+    // Tesseract scores run lower than the neural engine's (engine MIN_SCORE)
+    const minScore = raw.engine === 'tesseract' ? TESSERACT_MIN_SCORE : undefined;
+    const regions = buildRegions(raw.lines, c, { w: frame.w, h: frame.h }, { lang, minScore });
     let complete = true;
     if (!correct || s.spellCheck === false) return { regions, complete };
     const tasks = [];
@@ -765,6 +781,9 @@ export function createScanner(deps) {
           addOthers(current, added);
           emit('update', snapshot(current));
           translateCapture(current);
+          // a growing transcript is new text: one wrong-language page that
+          // continues on the next would otherwise never count twice
+          if (grew) checkLanguage(current);
           return;
         }
       } else if (!addedTriggers) {
@@ -874,15 +893,20 @@ export function createScanner(deps) {
       return;
     }
     const flight = `${rec.id}|${key}|${text}`;
-    if (inflight.has(flight)) return;
+    // a Retry while the automatic retry runs waits for that outcome instead of reporting failure
+    if (inflight.has(flight)) return inflight.get(flight);
     if (typeof translate !== 'function') {
       target.status = 'done';
       return;
     }
-    inflight.add(flight);
+    let settle;
+    inflight.set(flight, new Promise((resolve) => { settle = resolve; }));
+    const wasError = target.status === 'error';
     target.status = 'pending';
     translating++;
     refreshStatus();
+    // a retried part shows that it is being translated again, not the old error
+    if (wasError) emit('update', snapshot(rec));
     try {
       const out = String((await translateText(text, kind, rec.src, rec.tgt)) ?? '');
       lruSet(translationMemo, memoKey, out, MEMO_SIZE);
@@ -897,7 +921,8 @@ export function createScanner(deps) {
       if (!now || now.text !== text) return;
       now.status = 'error';
       const retrying = attempt === 0;
-      if (rec === current) translationError = { id: rec.id, key, retrying };
+      // the reason matters: "check your connection" is wrong advice when the service is busy
+      if (rec === current) translationError = { id: rec.id, key, retrying, code: err && err.code };
       emit('update', snapshot(rec));
       if (retrying) {
         clock.setTimeout(() => {
@@ -908,16 +933,23 @@ export function createScanner(deps) {
       console.warn('[scanner] translation failed', err);
     } finally {
       inflight.delete(flight);
+      settle();
       translating--;
       refreshStatus();
     }
   }
 
   // Google's detected language disagrees with the chosen game language on
-  // three dialog captures in a row: suggest switching (checked on the first
-  // three dialog captures and every 20th after, or while a streak runs).
+  // three dialog checks in a row, or on two that hold 40+ letters of new
+  // text (two full pages of another language is evidence enough): suggest
+  // switching. Checked on new captures and growing transcripts - the first
+  // three, every 20th after, or while a streak runs.
   async function checkLanguage(rec) {
-    if (!detectLanguage || letterCount(rec.dialog.text) < 12) return;
+    const text = rec.dialog.text;
+    if (!detectLanguage || letterCount(text) < 12) return;
+    // only the part of a transcript not counted before adds to the evidence
+    const fresh = Math.max(0, letterCount(text) - (rec.langLetters || 0));
+    rec.langLetters = letterCount(text);
     dialogChecks++;
     if (!(dialogChecks <= 3 || mismatchStreak > 0 || dialogChecks % 20 === 0)) return;
     let detected = null;
@@ -929,10 +961,12 @@ export function createScanner(deps) {
     if (!detected || rec.src !== (settingsCache && settingsCache.source)) return;
     if (baseLang(detected) === baseLang(rec.src)) {
       mismatchStreak = 0;
+      mismatchLetters = 0;
       return;
     }
     mismatchStreak++;
-    if (mismatchStreak >= 3) {
+    mismatchLetters += fresh;
+    if (mismatchStreak >= 3 || (mismatchStreak >= 2 && mismatchLetters >= 40)) {
       const next = { type: 'language-mismatch', detected: baseLang(detected), expected: rec.src };
       if (!hint || hint.detected !== next.detected) {
         hint = next;
@@ -1052,7 +1086,18 @@ export function createScanner(deps) {
       // every box, and the free frame even when "read text outside text
       // boxes" is off: the player asked for this screen explicitly
       for (const c of [...containers].sort(byPriority)) await readContainer(c, frame, s);
-      if (outside.hash !== null && s.readAllText) await readOutside(frame, s);
+      compose(clock.now(), { force: true });
+      const readOut = outside.hash !== null && s.readAllText;
+      if (composeHadContent && current) {
+        // the boxes are what the player is looking at: answer with them now
+        // (a whole-screen read takes seconds); the rest of the screen is
+        // read next and joins this capture
+        const plan = readOut ? outsidePlan() : 'skip';
+        if (plan !== 'skip') attachOutside(plan === 'read' ? readOutside(frame, s) : Promise.resolve(), current);
+        return snapshot(current);
+      }
+      // nothing in the boxes: the rest of the screen is all there is
+      if (readOut) await readOutside(frame, s);
       compose(clock.now(), { force: true });
       return composeHadContent && current ? snapshot(current) : null;
     })();
@@ -1066,6 +1111,37 @@ export function createScanner(deps) {
     });
     refreshStatus();
     return forced;
+  }
+
+  // "Translate now" reads the rest of the screen once per scene ('cached'
+  // reuses that read) and at most every 3 s ('skip'): a whole-screen read
+  // takes seconds, and the next press waits for it (one engine job at a time).
+  function outsidePlan() {
+    const cached = lruGet(lru, outsideKey());
+    if (cached) {
+      outside.readHash = outside.hash;
+      outside.regions = cached.regions;
+      return 'cached';
+    }
+    return clock.now() - freeLastRead >= FREE_INTERVAL_MS ? 'read' : 'skip';
+  }
+
+  // Text "Translate now" found outside the boxes after it answered: added
+  // to the capture it answered with, if that is still the one on show.
+  function attachOutside(read, rec) {
+    const gen = generation;
+    read.then(() => {
+      if (gen !== generation || rec !== current || !outside.regions.length) return;
+      const shown = [rec.dialog ? rec.dialog.text : '', ...rec.others.map((o) => o.text)].map(normalizeForCompare);
+      const fresh = outside.regions.filter((r) => {
+        const n = normalizeForCompare(r.text);
+        return n && !shown.some((x) => x && similarText(x, n, SAME_READ));
+      });
+      if (!fresh.length) return;
+      addOthers(rec, fresh.map((region) => ({ region })));
+      emit('update', snapshot(rec));
+      translateCapture(rec);
+    });
   }
 
   // Manual "Retry" for a region of the shown capture (or of a recent one).
@@ -1090,6 +1166,7 @@ export function createScanner(deps) {
   function dismissHint() {
     hint = null;
     mismatchStreak = 0;
+    mismatchLetters = 0;
     refreshStatus();
   }
 

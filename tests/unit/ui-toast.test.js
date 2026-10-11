@@ -148,6 +148,24 @@ describe('toast', () => {
     expect(document.activeElement.id).toBe('b');
   });
 
+  it('reports its footprint as scroll padding so focus is never hidden under it (WCAG 2.4.11)', () => {
+    const observers = [];
+    vi.stubGlobal('ResizeObserver', class { constructor(cb) { this.cb = cb; observers.push(this); } observe() {} });
+    try {
+      region().getBoundingClientRect = () => ({ top: 64, bottom: 150, height: 86 });
+      toast('Couldn’t save your changes.', { kind: 'error' });
+      observers.forEach((o) => o.cb());
+      const css = document.documentElement.style;
+      expect(css.getPropertyValue('--toast-top')).toBe('150px');
+      expect(css.getPropertyValue('--toast-bottom')).toBe('0px');
+      region().getBoundingClientRect = () => ({ top: 0, bottom: 0, height: 0 });
+      observers.forEach((o) => o.cb());
+      expect(css.getPropertyValue('--toast-top')).toBe('0px');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('creates the region if the page lacks one and ignores empty messages', () => {
     document.getElementById('toast-region').remove();
     expect(toast('').el).toBeNull();

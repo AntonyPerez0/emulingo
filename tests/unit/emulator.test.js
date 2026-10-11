@@ -22,6 +22,12 @@ const kv = vi.hoisted(() => {
   };
 });
 vi.mock('../../src/core/idb.js', () => kv.api);
+// Erase everything freezes storage for the rest of the page's life
+const storage = vi.hoisted(() => ({ frozen: false }));
+vi.mock('../../src/core/localStorage.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  isFrozen: () => storage.frozen
+}));
 
 // keep the real getContext out of jsdom (it logs "not implemented")
 const getContextSpy = vi.fn(() => null);
@@ -171,6 +177,7 @@ beforeEach(() => {
   kv.map.clear();
   kv.state.failSet = null;
   kv.state.records = {};
+  storage.frozen = false;
   vi.clearAllMocks();
   document.body.innerHTML = '<div class="stage" data-stage><div id="game" role="application" aria-label="Game screen"></div></div>';
   for (const k of Object.keys(window)) if (k.startsWith('EJS_')) delete window[k];
@@ -198,7 +205,7 @@ describe('loadGame configuration', () => {
     expect(window.EJS_gameName).toBe('Test Game-012345');
     expect(window.EJS_volume).toBe(0.7);
     expect('EJS_Volume' in window).toBe(false);
-    expect(window.EJS_color).toBe('#22c55e');
+    expect(window.EJS_color).toBe('#15803d'); // white text on it stays AA
     expect(window.EJS_backgroundColor).toBe('#000000');
     expect(window.EJS_startOnLoaded).toBe(true);
     expect(window.EJS_Buttons).toEqual({ ...EJS_BUTTONS });
@@ -461,6 +468,40 @@ describe('battery saves', () => {
     expect(fake.gm.restart).toHaveBeenCalledTimes(1);
   });
 
+  it('lets a save restored from a backup (Replace) beat a newer EmulatorJS copy, once', async () => {
+    kv.map.set('sram:' + ROM.id, { v: 1, restored: true, files: { [SAVE_PATH]: { data: new Uint8Array([1]), mtime: 1000 } } });
+    const fake = makeFake();
+    fake.FS.dirs.add(SAVE_DIR);
+    fake.FS.files.set(SAVE_PATH, { data: new Uint8Array([2]), mtime: 5000 });
+    const p = emu.loadGame(ROM, BYTES);
+    await waitForLoader();
+    construct(fake);
+    mountFs(fake);
+    expect(Array.from(fake.FS.readFile(SAVE_PATH))).toEqual([1]);
+    start(fake);
+    await p;
+    expect(fake.gm.restart).not.toHaveBeenCalled();
+    await flush();
+    // the next start treats it like any other mirror again
+    expect(kv.map.get('sram:' + ROM.id).restored).toBeUndefined();
+  });
+
+  it('re-homes a restored save made under another file name over the existing one', async () => {
+    const old = '/data/saves/Gambatte/Old Name-aaaaaa.srm';
+    kv.map.set('sram:' + ROM.id, { v: 1, restored: true, files: { [old]: { data: new Uint8Array([7]), mtime: 1000 } } });
+    const fake = makeFake();
+    fake.FS.dirs.add(SAVE_DIR);
+    fake.FS.files.set(SAVE_PATH, { data: new Uint8Array([2]), mtime: 5000 });
+    const p = emu.loadGame(ROM, BYTES);
+    await waitForLoader();
+    construct(fake);
+    mountFs(fake);
+    start(fake);
+    await p;
+    expect(Array.from(fake.FS.readFile(SAVE_PATH))).toEqual([7]);
+    expect(fake.gm.restart).toHaveBeenCalledTimes(1);
+  });
+
   it('flushes every 10 s and mirrors only changes', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     const fake = makeFake();
@@ -490,6 +531,83 @@ describe('battery saves', () => {
     expect(fake.gm.saveSaveFiles).toHaveBeenCalledTimes(1);
     expect(await emu.flushSaves()).toBe(true);
     expect(fake.FS.syncfs).toHaveBeenCalledWith(false, expect.any(Function));
+  });
+});
+
+describe('one game per browser', () => {
+  const withLocks = (request) => Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+  afterEach(() => { delete navigator.locks; });
+
+  it('refuses to start while another tab or window runs a game', async () => {
+    const request = vi.fn(() => Promise.reject(new DOMException('Timed out', 'TimeoutError')));
+    withLocks(request);
+    await expect(emu.loadGame(ROM, BYTES)).rejects.toMatchObject({ code: 'busy', message: expect.stringMatching(/another Emulingo tab/u) });
+    expect(request).toHaveBeenCalledWith('emulingo:game', expect.any(Object), expect.any(Function));
+    expect(document.querySelector('script[data-emulingo="ejs-loader"]')).toBeNull();
+  });
+
+  it('holds the lock for as long as the page runs the game', async () => {
+    let released = false;
+    const request = vi.fn((name, opts, cb) => {
+      const held = Promise.resolve(cb({ name }));
+      held.then(() => { released = true; });
+      return held;
+    });
+    withLocks(request);
+    await bootGame();
+    await flush();
+    expect(emu.isStarted()).toBe(true);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(released).toBe(false);
+  });
+});
+
+describe('after Erase everything', () => {
+  it('lets go of EmulatorJS’s save database when another tab deletes it, and stops saving', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    const fake = makeFake();
+    const savesDb = new EventTarget();
+    savesDb.close = vi.fn();
+    fake.FS.filesystems = { IDBFS: { dbs: { '/data/saves': savesDb } } };
+    const p = emu.loadGame(ROM, BYTES);
+    await vi.advanceTimersByTimeAsync(10);
+    construct(fake);
+    mountFs(fake);
+    start(fake);
+    await p;
+    savesDb.dispatchEvent(new Event('versionchange'));
+    expect(savesDb.close).toHaveBeenCalled();
+    fake.gm.saveSaveFiles.mockClear();
+    await vi.advanceTimersByTimeAsync(60_000);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(fake.gm.saveSaveFiles).not.toHaveBeenCalled();
+  });
+
+  it('stops every save (ours and EmulatorJS’s own timer) so deleted data stays deleted', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    const fake = makeFake();
+    const p = emu.loadGame(ROM, BYTES);
+    await vi.advanceTimersByTimeAsync(10);
+    construct(fake);
+    mountFs(fake);
+    start(fake);
+    await p;
+    await vi.advanceTimersByTimeAsync(31_000); // past the autosave grace
+    fake.gm.saveSaveFiles.mockClear();
+    kv.api.idbSet.mockClear();
+    fake.e.saveSaveInterval = setInterval(() => fake.gm.saveSaveFiles(), 300_000);
+    storage.frozen = true;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fake.e.saveSaveInterval).toBeNull();
+    window.dispatchEvent(new Event('pagehide'));
+    emu.pause('user');
+    expect(await emu.flushSaves()).toBe(false);
+    expect(await emu.autoSave()).toBe(false);
+    await expect(emu.quickSave()).rejects.toMatchObject({ code: 'erased' });
+    emu.resume('user');
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(fake.gm.saveSaveFiles).not.toHaveBeenCalled();
+    expect(kv.api.idbSet).not.toHaveBeenCalled();
   });
 });
 

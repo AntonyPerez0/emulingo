@@ -182,6 +182,9 @@ describe('review fixes', () => {
       { row: 1, col: 1, x: 128, y: 129, w: 23, h: 7, text: 'RUN', score: 0.999 }
     ];
     expect(buildRegionsFromCells(cells, menu, GB)[0].lines).toEqual(['FIGHT', 'ITEM', 'RUN']);
+    // the ligature read as stray letters (phone presentation: "en" 0.74)
+    const stray = cells.map((c) => (c.col === 1 && c.row === 0 ? { ...c, text: 'en', score: 0.74 } : c));
+    expect(buildRegionsFromCells(stray, menu, GB)[0].lines).toEqual(['FIGHT', 'PkMn', 'ITEM', 'RUN']);
     // the same lines without cell columns fall back to geometry
     const lines = cells.filter((c) => c.text).map((c) => L(c.text, c.x, c.y, c.w, c.h, c.score));
     expect(buildRegions(lines, menu, GB)[0].lines).toEqual(['FIGHT', 'ITEM RUN']);

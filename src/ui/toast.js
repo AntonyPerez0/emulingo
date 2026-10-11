@@ -25,7 +25,24 @@ function getRegion() {
     region.setAttribute('aria-label', 'Notifications');
     document.body.appendChild(region);
   }
+  trackFootprint(region);
   return region;
+}
+
+// Keyboard focus must not end up hidden under a toast (WCAG 2.4.11), and an
+// error toast stays until dismissed: the region's footprint feeds the page's
+// scroll padding (base.css), so the browser scrolls focused controls clear of it.
+let tracked = null;
+function trackFootprint(region) {
+  if (tracked === region || typeof ResizeObserver !== 'function') return;
+  tracked = region;
+  const root = document.documentElement;
+  new ResizeObserver(() => {
+    const r = region.getBoundingClientRect();
+    const atTop = r.top < window.innerHeight / 2;
+    root.style.setProperty('--toast-top', `${r.height && atTop ? Math.round(r.bottom) : 0}px`);
+    root.style.setProperty('--toast-bottom', `${r.height && !atTop ? Math.round(window.innerHeight - r.top) : 0}px`);
+  }).observe(region);
 }
 
 function startTimer(t) {

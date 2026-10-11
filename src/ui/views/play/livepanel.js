@@ -11,7 +11,7 @@
 import { html, render, uid } from '../../dom.js';
 import { icon } from '../../icons.js';
 import { announce } from '../../a11y.js';
-import { banner, setStatusChip, statusChip, progress, setProgress, emptyState, kbd } from '../../components.js';
+import { banner, setStatusChip, statusChip, progress, setProgress, emptyState, kbd, setBusy } from '../../components.js';
 import { formatRelative, formatCount } from '../../format.js';
 import { dirFor, langName } from '../../../core/language.js';
 import * as tts from '../../../core/tts.js';
@@ -43,6 +43,7 @@ export function createLivePanel(section, opts = {}) {
   let mode = 'live';       // 'live' | 'history'
   let latestLive = null;   // newest capture from the scanner (id of the last 'capture' event)
   let queued = null;       // live capture waiting for the player to finish reading
+  let showNextSrc = null;  // the player switched the game language: show its re-read at once
   let announcedQueue = null;
   let phase = 'idle';       // game: 'idle' | 'loading' | 'running' | 'error'
   let hint = null;
@@ -132,7 +133,7 @@ export function createLivePanel(section, opts = {}) {
     if (mode === 'history' && shown) {
       parts.push(html`<div class="live__notice live__notice--history" data-notice="history">
         ${icon('history', { size: 16 })}
-        <p class="live__notice-text">Viewing an earlier line · <span class="text-muted">${formatRelative(shown.time)}</span></p>
+        <p class="live__notice-text">Viewing an earlier line<span class="visually-hidden">, </span><span class="live__notice-meta">${formatRelative(shown.time)}</span></p>
         <button type="button" class="btn btn--sm" data-action="back-to-live">${icon('arrow-right', { size: 16 })}<span class="btn__label">Back to live</span></button>
       </div>`);
     } else if (queued) {
@@ -170,13 +171,29 @@ export function createLivePanel(section, opts = {}) {
   // ---- capture rendering --------------------------------------------------------
 
   function wordsHtml(text, lang, label) {
-    const tokens = wordTokens(text, lang);
+    // Punctuation sticks to its word, so a line never starts with "?" (a
+    // button is a line-break opportunity on both sides).
+    const items = [];
+    let pre = '';
+    for (const t of wordTokens(text, lang)) {
+      if (t.word) { items.push({ word: t.text, pre, post: '' }); pre = ''; continue; }
+      const prev = items[items.length - 1];
+      const afterWord = !!prev && typeof prev !== 'string';
+      // "?" or ", " goes with the word before it, "¿" or " “" with the next one
+      const lead = afterWord ? t.text.match(/^\S*/)[0] : '';
+      const tail = lead === t.text ? '' : t.text.match(/\S*$/)[0];
+      if (lead) prev.post += lead;
+      items.push(t.text.slice(lead.length, t.text.length - tail.length));
+      pre = tail;
+    }
+    if (pre) items.push(pre);
     let first = true;
-    return html`<span class="words" role="group" aria-label="${label}" aria-describedby="${ids.help}" data-words>${tokens.map((t) => {
-      if (!t.word) return t.text;
+    return html`<span class="words" role="group" aria-label="${label}" aria-describedby="${ids.help}" data-words>${items.map((it) => {
+      if (typeof it === 'string') return it;
       const tab = first ? '0' : '-1';
       first = false;
-      return html`<button type="button" class="word" tabindex="${tab}" data-word aria-haspopup="dialog" aria-expanded="false">${t.text}</button>`;
+      const btn = html`<button type="button" class="word" tabindex="${tab}" data-word aria-haspopup="dialog" aria-expanded="false">${it.word}</button>`;
+      return it.pre || it.post ? html`<span class="word-glue">${it.pre}${btn}${it.post}</span>` : btn;
     })}</span>`;
   }
 
@@ -363,6 +380,9 @@ export function createLivePanel(section, opts = {}) {
     // an update for an older capture (a late translation) only matters if it is the one on screen
     const isLatest = latestLive && c.id === latestLive.id;
     if (!isLatest && !(shown && c.id === shown.id)) return;
+    // the line re-read after "Switch" is what the player asked for: don't
+    // hold it back behind "New line on screen" (focus and pointer are here)
+    if (isNew && showNextSrc && c.src === showNextSrc) { showNextSrc = null; force = true; }
     if (queued && c.id === queued.id && frozen() && !force) { queued = c; return; }
     apply(c, { force });
   }
@@ -449,12 +469,20 @@ export function createLivePanel(section, opts = {}) {
     const c = shown;
     switch (btn.dataset.action) {
       case 'retry-part':
-        if (c) onRetryPart(c, btn.dataset.part, mode);
+        if (c) {
+          // busy (aria-disabled) until the attempt ends: a second press can't
+          // start a parallel one, and an earlier line shows it is working
+          setBusy(btn, true, { label: 'Retrying…' });
+          Promise.resolve(onRetryPart(c, btn.dataset.part, mode))
+            .catch(() => {})
+            .finally(() => { if (btn.isConnected) setBusy(btn, false); });
+        }
         break;
       case 'status-retry':
         onStatusRetry();
         break;
       case 'hint-switch':
+        showNextSrc = btn.dataset.lang || null;
         onSwitchLanguage(btn.dataset.lang);
         break;
       case 'hint-dismiss':

@@ -323,6 +323,16 @@ describe('game saves', () => {
     await backup.applyBackup(summary, { mode: 'replace', includeSaves: false });
   });
 
+  it('marks battery saves restored by Replace so they win over the emulator’s newer copy', async () => {
+    await idb.idbSet('roms:index', [{ id: 'r1', name: 'Game.gb' }]);
+    const mirror = { v: 1, t: 6, files: { '/data/saves/Gambatte/Game.srm': { data: { $u8: 'AQ==' }, mtime: 5 } } };
+    const summary = await backup.parseBackup(savesBackup([{ kind: 'sram', rom: 'Game.gb', suffix: '', data: mirror }]));
+    await backup.applyBackup(summary, { mode: 'merge' });
+    expect((await idb.idbGet('sram:r1')).restored).toBeUndefined();
+    await backup.applyBackup(summary, { mode: 'replace' });
+    expect(await idb.idbGet('sram:r1')).toMatchObject({ v: 1, restored: true });
+  });
+
   it('encodes and decodes stored values', async () => {
     const blob = new Blob([new Uint8Array([1, 2])], { type: 'application/octet-stream' });
     const enc = await backup.encodeValue({ a: new Uint8Array([1]), b: [new ArrayBuffer(2), 'x', 3, null], c: blob, d: () => 1, e: new Date() });

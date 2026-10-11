@@ -171,7 +171,8 @@ function watchErrors(page, label, errors = []) {
 
 async function openPlay(page, base) {
   await page.goto(`${base}#/play`);
-  await page.waitForSelector('section[data-view="play"]:not([hidden]) h1', { timeout: 30000 });
+  // the view's own heading: the router's loading placeholder has an h1 too
+  await page.waitForSelector('section[data-view="play"]:not([hidden]) [data-play-title]', { timeout: 30000 });
   await page.waitForTimeout(300);
 }
 

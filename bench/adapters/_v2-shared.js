@@ -90,7 +90,9 @@ export async function readV2(engine, canvas, grid, ctx, { forceFree = false, str
       info.lines = lines.map((l) => [l.text, +l.score.toFixed(3)]);
     }
     dbg.push(info);
-    for (const r of buildRegions(lines, c, { w: frame.w, h: frame.h }, { lang: ctx.lang })) {
+    // like the scanner: Tesseract scores run lower (engine MIN_SCORE.tesseract)
+    const minScore = engineName === 'tesseract' ? 0.3 : undefined;
+    for (const r of buildRegions(lines, c, { w: frame.w, h: frame.h }, { lang: ctx.lang, minScore })) {
       if (r && r.text) regions.push({ text: r.text, conf: Math.round((r.score ?? 0) * 100), kind: r.kind });
     }
   }

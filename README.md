@@ -8,6 +8,15 @@ Everything except translation happens on your device: the emulator, the text rec
 
 > Emulingo doesn’t include any games. Use ROM files of games you own, or homebrew and public-domain games.
 
+![Play: a Game Boy game asks “Möchtest du gegen mich kämpfen?”, and the live translation beside it reads “Do you want to fight me?”, with the “ROUTE 1” sign under Also on screen](docs/screenshots/play-desktop-dark.png)
+
+<p>
+  <img src="docs/screenshots/review-desktop-light.png" alt="Review in the light theme: a German flashcard with its English translation and the Again, Hard, Good and Easy buttons, each showing when the card comes back" width="78%">
+  <img src="docs/screenshots/play-phone-dark.png" alt="Play on a phone: the game at the top, the touch controls docked underneath it, then the toolbar" width="19%">
+</p>
+
+<sub>The screenshots show Emulingo’s own homebrew test cartridge (`bench/e2e/make-gb-rom.mjs`).</sub>
+
 ## Features
 
 - **Built-in emulator** – [EmulatorJS](https://emulatorjs.org) 4.2.3, with keyboard and gamepad support and a touch gamepad on phones and tablets.
@@ -170,7 +179,7 @@ When a new version of Emulingo is published, the app shows “An update is avail
 | `npm run test:watch` | Unit tests in watch mode |
 | `npm run lint` | ESLint |
 | `npm run test:e2e` | Every browser end-to-end suite, one after another |
-| `npm run e2e:pwa`, `e2e:emu`, `e2e:capture`, `e2e:engine`, `e2e:learn`, `e2e:settings`, `e2e:play` | One end-to-end suite |
+| `npm run e2e:pwa`, `e2e:emu`, `e2e:capture`, `e2e:engine`, `e2e:learn`, `e2e:settings`, `e2e:play`, `e2e:ocr` | One end-to-end suite |
 | `npm run bench:ocr` | OCR accuracy and speed benchmark |
 | `npm run bench:scenes`, `bench:report` | Bench contact sheet; re-render bench tables |
 
@@ -203,6 +212,7 @@ The suites drive headless Chromium with [Playwright](https://playwright.dev) (ru
 | `e2e:capture` | Pixel-exact frame capture at different sizes and pixel densities |
 | `e2e:engine` | The OCR engine in its worker, the Classic fallback, main-thread blocking |
 | `e2e:learn`, `e2e:settings`, `e2e:play` | The views: accessibility scans, keyboard walkthroughs, screenshots |
+| `e2e:ocr` | Reading and translating the test game end to end: every page and its translation, time from the last typed letter to the translation, no repeated lines after a minute on one page, one flashcard per sentence, a sign outside the text box, the wrong-language suggestion, the Classic reader, and a phone screen |
 
 ### OCR bench
 

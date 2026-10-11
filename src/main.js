@@ -166,6 +166,19 @@ async function initDueBadge() {
 
 // ---- Service worker (production only) ---------------------------------------------
 
+// The update reload saves a running game first, like Eject: page unload
+// alone can cut the battery-save and autosave writes short.
+async function saveRunningGame() {
+  try {
+    const emu = await import('./core/emulator.js');
+    if (!emu.isStarted()) return;
+    await Promise.race([
+      Promise.allSettled([emu.flushSaves(), emu.autoSave()]),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ]);
+  } catch { /* no game */ }
+}
+
 function registerServiceWorker() {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
   const start = async () => {
@@ -176,6 +189,8 @@ function registerServiceWorker() {
       console.warn('[emulingo] service worker registration failed', err);
       return;
     }
+    // (some embedded browsers and test harnesses stub register() out)
+    if (!reg) return;
     let updateRequested = false;
     const promptUpdate = (worker) => {
       toast('An update is available.', {
@@ -186,6 +201,7 @@ function registerServiceWorker() {
           onClick: async () => {
             updateRequested = true;
             try { await db.flush(); } catch { /* best effort */ }
+            await saveRunningGame();
             worker.postMessage({ type: 'SKIP_WAITING' });
           },
         },

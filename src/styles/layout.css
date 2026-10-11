@@ -101,9 +101,40 @@
   color: var(--text-muted);
 }
 
+.lang-chip__short {
+  display: none;
+}
+
+/* Tablets: the inline nav leaves little room, so the chip shows codes
+   (the names stay as its accessible name). */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .lang-chip__pair {
+    position: relative;
+  }
+
+  .lang-chip__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .lang-chip__short {
+    display: inline;
+  }
+}
+
 .lang-chip[data-empty] {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* accent text on the surface-2 hover fill is 4.46:1 in light: use the soft pair */
+.lang-chip[data-empty]:hover {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
 }
 
 /* ---- Primary navigation (desktop: inline links) ---- */
@@ -143,6 +174,13 @@
   background: var(--surface-2);
   color: var(--text);
   text-decoration: none;
+}
+
+@media (pointer: coarse) {
+  .brand,
+  .app-nav__link {
+    min-height: 44px;
+  }
 }
 
 .app-nav__link[aria-current='page'] {
@@ -403,6 +441,29 @@ main > section[data-view] {
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
+
+/* Short viewports (landscape phones, 200–400 % zoom): a sticky header plus the
+   tab bar would cover most of the screen (61 % at 320×200), so the header
+   scrolls away and the tab bar collapses to icons (labels stay as names). */
+@media (max-height: 480px) {
+  .app-header { position: static; }
+  html { scroll-padding-top: max(var(--space-4), calc(var(--toast-top, 0px) + var(--space-2))); }
+}
+
+@media (max-width: 767.98px) and (max-height: 480px) {
+  :root { --bottom-nav-h: 48px; }
+
+  .app-nav__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app-nav__icon { height: 32px; }
 }
 
 /* Desktop: label and badge sit inline */

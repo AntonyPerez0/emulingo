@@ -26,15 +26,42 @@ function liveRegion(kind) {
   return document.getElementById(kind === 'assertive' ? 'sr-alert' : 'sr-status');
 }
 
+/** announce() message → [{ text, lang }] with whitespace collapsed and empty parts dropped. */
+function toParts(msg) {
+  const out = [];
+  for (const p of Array.isArray(msg) ? msg : [msg]) {
+    const obj = p !== null && typeof p === 'object';
+    const text = String((obj ? p.text : p) ?? '').replace(/\s+/g, ' ').trim();
+    if (text) out.push({ text, lang: obj && p.lang ? String(p.lang) : '' });
+  }
+  return out;
+}
+
+function fillRegion(region, parts) {
+  region.textContent = '';
+  parts.forEach((p, i) => {
+    if (i) region.append(' ');
+    if (!p.lang) { region.append(p.text); return; }
+    const span = document.createElement('span');
+    span.lang = p.lang;
+    span.textContent = p.text;
+    region.append(span);
+  });
+}
+
 /**
  * Speak a message through the shared live regions (#sr-status polite,
  * #sr-alert assertive). Identical messages within dedupeMs are dropped, and
  * messages within 100 ms of each other are spoken together. The region is
  * cleared first and refilled shortly after so screen readers re-announce
  * text that happens to equal the previous message.
+ * `msg` is a string, or an array of strings and { text, lang } parts: game
+ * text and translations carry their language (WCAG 3.1.2) so screen readers
+ * switch voice instead of reading German with an English one.
  */
 export function announce(msg, { assertive = false, dedupeMs = DEDUPE_MS } = {}) {
-  const text = String(msg ?? '').replace(/\s+/g, ' ').trim();
+  const parts = toParts(msg);
+  const text = parts.map((p) => p.text).join(' ');
   if (!text || typeof document === 'undefined') return;
   const now = Date.now();
   if (text === lastAnnouncement.text && now - lastAnnouncement.at < dedupeMs) return;
@@ -48,9 +75,10 @@ export function announce(msg, { assertive = false, dedupeMs = DEDUPE_MS } = {}) 
   const queued = pending[kind];
   if (queued && !queued.done) {
     queued.text += ` ${text}`;
+    queued.parts.push(...parts);
     return;
   }
-  const job = { text, done: false };
+  const job = { text, parts, done: false };
   pending[kind] = job;
   clearTimeout(clearTimers[kind]);
   first.textContent = '';
@@ -60,7 +88,7 @@ export function announce(msg, { assertive = false, dedupeMs = DEDUPE_MS } = {}) 
     // Resolved again: a dialog may have opened or closed since the call.
     const region = liveRegion(kind);
     if (!region) return;
-    region.textContent = job.text;
+    fillRegion(region, job.parts);
     clearTimers[kind] = setTimeout(() => { if (region.textContent === job.text) region.textContent = ''; }, CLEAR_AFTER_MS);
   };
   // A short gap (not just a frame) so the cleared region is noticed and
@@ -341,8 +369,9 @@ function ejsPopupOpen(gameEl) {
 /**
  * EmulatorJS focuses #game and calls preventDefault on every key, which traps
  * keyboard users. This capture-phase handler runs first:
- *  - Tab / Shift+Tab inside #game → the toolbar's first / last control
- *    (skipping EmulatorJS's hidden in-frame buttons)
+ *  - Tab inside #game → the toolbar's first control; Shift+Tab → the control
+ *    before #game (else the toolbar's last), skipping EmulatorJS's hidden
+ *    in-frame buttons
  *  - Escape → onEscape() (default: first toolbar control), unless an
  *    EmulatorJS popup is open
  *  - Enter, Space and arrows on EmulatorJS's own controls reach them natively
@@ -360,6 +389,20 @@ export function installEmulatorFocusRelease({ gameEl, toolbarEl, onEscape } = {}
     return !!el;
   };
 
+  // Shift+Tab leaves backwards, to the control just before #game. Sending it
+  // to the toolbar's end when the toolbar comes after the game made a loop
+  // (toolbar → game → toolbar) that never reached the page above the game.
+  const toBefore = () => {
+    let prev = null;
+    for (const el of focusableIn(document.body)) {
+      if (gameEl.contains(el) || el.contains(gameEl)) continue;
+      if (!(gameEl.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)) break;
+      prev = el;
+    }
+    if (prev) prev.focus();
+    return !!prev;
+  };
+
   const onKey = (e) => {
     if (e.type === 'keydown' && e.key === 'Tab') lastTabAt = Date.now();
     const t = e.target;
@@ -367,7 +410,7 @@ export function installEmulatorFocusRelease({ gameEl, toolbarEl, onEscape } = {}
 
     if (e.key === 'Tab') {
       e.stopPropagation();
-      if (e.type === 'keydown' && toToolbar(e.shiftKey)) e.preventDefault();
+      if (e.type === 'keydown' && ((e.shiftKey && toBefore()) || toToolbar(e.shiftKey))) e.preventDefault();
       return;
     }
     if (e.key === 'Escape' || e.key === 'Esc') {

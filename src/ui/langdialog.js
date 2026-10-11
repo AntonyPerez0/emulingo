@@ -39,8 +39,10 @@ function renderChip(chip) {
     return;
   }
   chip.removeAttribute('data-empty');
+  // Where the header is tight, codes ("DE → EN") stand in for the names visually
+  const code = (c) => String(c || '').split('-')[0].toUpperCase();
   render(chip, html`${icon('languages', { size: 18 })}<span class="lang-chip__pair">
-      <span class="visually-hidden">Languages: </span><span>${nameOf(src)}</span><span class="lang-chip__arrow" aria-hidden="true">→</span><span class="visually-hidden"> to </span><span>${nameOf(tgt)}</span>
+      <span class="lang-chip__long"><span class="visually-hidden">Languages: </span><span>${nameOf(src)}</span><span class="lang-chip__arrow" aria-hidden="true">→</span><span class="visually-hidden"> to </span><span>${nameOf(tgt)}</span></span><span class="lang-chip__short" aria-hidden="true">${code(src)}<span class="lang-chip__arrow">→</span>${code(tgt)}</span>
     </span>${icon('chevron-down', { size: 16 })}`);
 }
 
@@ -58,9 +60,10 @@ export function initLangChip(chip = document.getElementById('lang-chip')) {
 function sourceNote(code) {
   const l = findLang(code);
   if (!l || l.ocr !== 'tesseract') return '';
+  const how = l.script === 'japanese' || l.script === 'han' ? 'a separate reader that downloads the first time' : 'the Classic reader';
   return banner({
     tone: 'warning',
-    body: `${l.name} text is read with a basic engine, so expect more misreads than with Latin-script languages.`,
+    body: `${l.name} text is read with ${how}, so expect more misreads than with languages written in the Latin alphabet.`,
   });
 }
 

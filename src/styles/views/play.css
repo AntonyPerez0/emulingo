@@ -14,6 +14,22 @@
 .play[data-phase='running'] .play__header,
 .play[data-phase='error'] .play__header {
   margin-bottom: var(--space-4);
+  /* over the game's left edge: the game is centred in its column, which
+     is the page minus the translation column and the gap (.play-layout) */
+  padding-inline-start: max(0px, calc((100% - var(--play-side, 0px) - var(--stage-w, 100%)) / 2));
+}
+
+@media (min-width: 960px) {
+  .play { --play-side: calc(340px + var(--space-6)); }
+}
+
+@media (min-width: 1200px) {
+  .play { --play-side: calc(380px + var(--space-6)); }
+}
+
+/* (the game shrinks while the text area is edited: the title stays put) */
+body.play-zone-editing .play[data-phase] .play__header {
+  padding-inline-start: 0;
 }
 
 .play[data-phase='loading'] .play__title,
@@ -43,8 +59,21 @@
     display: none;
   }
 
+  /* A phone needs the height for the game, its pad and the translation: the
+     game's name stays for screen readers. */
+  .play:where([data-phase='loading'], [data-phase='running']) .stage {
+    --play-chrome: 150px;
+  }
+
+  .play[data-phase='loading'] .play__header,
   .play[data-phase='running'] .play__header {
-    margin-bottom: var(--space-3);
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -446,10 +475,13 @@
 
 .stage {
   --game-ar: 1.1111;
-  /* page header, toolbar, key hint and spacing around the stage */
-  --play-chrome: 252px;
+  /* page padding, title row, toolbar, key hint and the gaps between them
+     (measured: 74 above the stage, 100 below, plus a margin) */
+  --play-chrome: 200px;
   --stage-min-h: 220px;
-  --stage-max-h: calc(100dvh - var(--header-h) - var(--safe-top) - var(--bottom-nav-h) - var(--safe-bottom) - var(--play-chrome));
+  --dock-h: 0px;
+  --resume-h: 0px;
+  --stage-max-h: calc(100dvh - var(--header-h) - var(--safe-top) - var(--bottom-nav-h) - var(--safe-bottom) - var(--play-chrome) - var(--dock-h) - var(--resume-h));
   position: relative;
   width: min(100%, calc(max(var(--stage-min-h), var(--stage-max-h)) * var(--game-ar)));
   aspect-ratio: var(--game-ar);
@@ -493,12 +525,43 @@
   display: none !important;
 }
 
+/* Its menu button (touch devices) only toggles that hidden bar. */
+.stage .ejs_virtualGamepad_open {
+  display: none !important;
+}
+
+/* Touch devices held upright: EmulatorJS's on-screen pad gets a dock under
+   the picture instead of covering its bottom, where the text box is (the
+   emulator draws the picture at the top of a portrait canvas). */
+@media (orientation: portrait) {
+  .stage--dock {
+    --dock-h: 232px;
+    box-sizing: content-box;
+    padding-bottom: var(--dock-h);
+  }
+
+  .stage--dock .zone-overlay {
+    bottom: var(--dock-h);
+  }
+
+  /* The pad is hidden while the text area is edited, and so is its dock. */
+  body.play-zone-editing .stage--dock {
+    --dock-h: 0px;
+  }
+}
+
 @media (max-width: 767.98px) {
   .stage {
     --play-chrome: 200px;
     --stage-min-h: 200px;
     border-radius: var(--radius-md);
   }
+}
+
+/* "Resume where you left off?" sits above the toolbar: the game makes room
+   for it so the toolbar stays on screen. */
+.game:where(:has(.resume:not([hidden]))) .stage {
+  --resume-h: 80px;
 }
 
 /* Editing the text area: a smaller game, so the editor fits below it. */
@@ -517,6 +580,7 @@ body.play-zone-editing .stage {
   width: 100vw;
   height: 100vh;
   max-width: none;
+  padding: 0;
   aspect-ratio: auto;
   border-radius: 0;
   box-shadow: none;
@@ -600,10 +664,20 @@ body.play-zone-editing .stage {
 
 /* ---- Controls under the game ------------------------------------------------------- */
 
+/* As wide as the game (--stage-w, from stage.js); the toolbar moves
+   controls into More until it fits (toolbar.js). A very small game (a
+   phone held sideways) still gets a toolbar that fits on one row. */
 .play-controls {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  width: max(var(--stage-w, 100%), min(100%, 440px));
+  max-width: 100%;
+}
+
+/* The game shrinks for the text-area editor; the controls keep their place
+   above it, at the editor's width. */
+body.play-zone-editing .play-controls {
   width: 100%;
 }
 
@@ -628,7 +702,6 @@ body.play-zone-editing .stage {
 .tb-sep {
   width: 1px;
   height: 24px;
-  margin-inline: var(--space-1);
   background: var(--border);
 }
 
@@ -704,9 +777,10 @@ body.play-zone-editing .stage {
 }
 
 /* Auto-translate keeps its label where there is room: the eye icon alone
-   doesn't say what the toggle does. The rest are icons with tooltips. */
+   doesn't say what the toggle does. The rest are icons with tooltips. A
+   toolbar too narrow for it (toolbar.js adds --compact) uses the icon. */
 @media (min-width: 700px) and (max-width: 959.98px), (min-width: 1200px) {
-  .tb--labelled .tb__label {
+  .play-toolbar:not(.play-toolbar--compact) .tb--labelled .tb__label {
     position: static;
     width: auto;
     height: auto;
@@ -714,12 +788,12 @@ body.play-zone-editing .stage {
     clip-path: none;
   }
 
-  .tb.tb--labelled {
+  .play-toolbar:not(.play-toolbar--compact) .tb.tb--labelled {
     width: auto;
     padding: 0 var(--btn-px);
   }
 
-  .tb--labelled[data-tooltip]::after {
+  .play-toolbar:not(.play-toolbar--compact) .tb--labelled[data-tooltip]::after {
     display: none;
   }
 }
@@ -990,6 +1064,12 @@ body.play-zone-editing .ejs_virtualGamepad_parent {
   min-width: 0;
 }
 
+.live__notice-meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 .live__notice--queued {
   background: var(--accent-soft-bg);
   box-shadow: inset 3px 0 0 var(--accent);
@@ -1047,6 +1127,11 @@ body.play-zone-editing .ejs_virtualGamepad_parent {
 
 .words {
   white-space: pre-line;
+}
+
+/* A word and the punctuation on it ("kämpfen?") never split across lines */
+.word-glue {
+  white-space: nowrap;
 }
 
 /* Words read as text, act as buttons */
@@ -1401,6 +1486,10 @@ body.play-zone-editing .ejs_virtualGamepad_parent {
 @media (pointer: coarse) {
   .chip {
     min-height: 44px;
+  }
+
+  .tb:not(.tb--main) {
+    width: 44px;
   }
 
   .word {

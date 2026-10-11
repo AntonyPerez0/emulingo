@@ -120,7 +120,7 @@ export function createWordPopover({ host, onChange = () => {}, onCardsChanged = 
       c.state = 'error';
     }
     refresh();
-    if (c.state === 'done') announce(`${c.term}: ${c.translation}`);
+    if (c.state === 'done') announce([{ text: `${c.term}:`, lang: c.src }, { text: c.translation, lang: c.tgt }]);
     else announce('Couldn’t look up this word.');
   }
 

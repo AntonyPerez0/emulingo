@@ -83,7 +83,9 @@ const READS = {
   'yes-no': [L('YES', 120, 16, 24), L('NO', 120, 32, 16)],
   'title': [L('PRESS START', 36, 120, 88)],
   'title-2': [L('PRESS START', 36, 120, 88), L('NEW GAME', 48, 40, 64)],
-  'shaky': [L('Wild PIDGEY', 8, 112, 88, 8, 0.7), L('appeared!', 8, 128, 72, 8, 0.99)]
+  'shaky': [L('Wild PIDGEY', 8, 112, 88, 8, 0.7), L('appeared!', 8, 128, 72, 8, 0.99)],
+  'long1': [L('Hello there! Glad to', 8, 112, 144), L('meet you! Welcome to', 8, 128, 144)],
+  'long2': [L('the world of POKéMON!', 8, 112, 144), L('My name is OAK!', 8, 128, 120)]
 };
 
 // A world of boxes whose content can change; the fake tracker mirrors
@@ -194,7 +196,7 @@ function createTranslate(clock, { latency = 100 } = {}) {
     clock.setTimeout(() => {
       if (t.failures > 0) {
         t.failures--;
-        reject(new Error('HTTP 429'));
+        reject(Object.assign(new Error('HTTP 429'), t.failCode ? { code: t.failCode } : {}));
       } else {
         resolve(`[${tgt}] ${text}`);
       }
@@ -499,6 +501,17 @@ describe('scanner: free text and settings', () => {
     expect(t.engine.maxInFlight).toBe(1);
   });
 
+  it('leaves the rest of the screen alone while the player pages through dialogue', async () => {
+    const t = setup({}, { readAllText: true });
+    t.scanner.start();
+    ['p1', 'p2', 'p3'].forEach((p, i) => t.clock.at(i * 1500, () => t.world.show([GB_DIALOG, p])));
+    await t.clock.advance(4900);
+    // a whole-screen read would have held up the next page's read
+    expect(t.engine.calls.map((c) => c.mode)).toEqual(['container', 'container', 'container']);
+    await t.clock.advance(1000);
+    expect(t.engine.calls.map((c) => c.mode)).toContain('free');
+  });
+
   it('pauses on the settings toggle and when there is no game language', async () => {
     const t = setup({}, { ocrPaused: true });
     t.world.show([GB_DIALOG, 'p1']);
@@ -609,6 +622,39 @@ describe('scanner: translation failures', () => {
     await expect(done).resolves.toBe(true);
     expect(t.last().dialog.status).toBe('done');
     expect(await t.scanner.retryRegion('nope')).toBe(false);
+  });
+
+  it('lets a Retry during the automatic retry wait for its outcome, and shows the part as translating again', async () => {
+    const t = setup();
+    t.translate.failures = 1;
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(1000);
+    expect(t.last().dialog.status).toBe('error');
+    // step to the moment the automatic retry starts
+    for (let i = 0; i < 250 && t.translate.mock.calls.length < 2; i++) await t.clock.advance(20);
+    expect(t.translate).toHaveBeenCalledTimes(2);
+    expect(t.last().dialog.status).toBe('pending');
+    const done = t.scanner.retryRegion('dialog');
+    await t.clock.advance(200);
+    await expect(done).resolves.toBe(true);
+    expect(t.translate).toHaveBeenCalledTimes(2);
+    expect(t.last().dialog).toMatchObject({ status: 'done', translation: '[de] Wild PIDGEY appeared!' });
+  });
+
+  it('says why translation failed: busy service or offline, not always the connection', async () => {
+    const t = setup();
+    t.translate.failures = 2;
+    t.translate.failCode = 'rate-limited';
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(5000);
+    expect(t.scanner.getState().status).toMatchObject({ state: 'error', message: expect.stringMatching(/busy/u) });
+    t.translate.failures = 1;
+    t.translate.failCode = 'offline';
+    t.scanner.retryRegion('dialog');
+    await t.clock.advance(200);
+    expect(t.scanner.getState().status.message).toMatch(/offline/u);
   });
 });
 
@@ -772,6 +818,37 @@ describe('scanner: Translate now', () => {
     const t = setup();
     expect(await t.scanner.scanNow()).toBe(null);
   });
+
+  it('answers with the boxes first, then adds text found outside them', async () => {
+    const t = setup({}, { readAllText: true });
+    READS['sign-outside'] = [L('ROUTE 1', 16, 16, 56)];
+    const grab = t.world.frameSource.grab;
+    t.world.frameSource.grab = () => {
+      const f = grab();
+      if (f) f.img.content = 'sign-outside';
+      return f;
+    };
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(50);
+    const p = t.scanner.scanNow();
+    await t.clock.advance(350);
+    // the box read (300 ms) is the answer; the whole-screen read follows
+    const cap = await p;
+    expect(cap).toMatchObject({ dialog: { text: 'Wild PIDGEY appeared!' }, others: [] });
+    expect(t.engine.calls.map((c) => c.mode)).toEqual(['container', 'free']);
+    await t.clock.advance(400);
+    expect(t.last().id).toBe(cap.id);
+    expect(t.last().others).toMatchObject([{ kind: 'label', text: 'ROUTE 1' }]);
+    expect(t.captures()).toHaveLength(1);
+    expect(t.engine.maxInFlight).toBe(1);
+    // pressed again soon after: the boxes only (the next press would wait
+    // seconds behind another whole-screen read)
+    const q = t.scanner.scanNow();
+    await t.clock.advance(350);
+    expect((await q).dialog.text).toBe('Wild PIDGEY appeared!');
+    expect(t.engine.calls.filter((c) => c.mode === 'free')).toHaveLength(1);
+  });
 });
 
 describe('scanner: robustness', () => {
@@ -813,6 +890,35 @@ describe('scanner: robustness', () => {
     expect(t.scanner.getState().status.hint).toEqual({ type: 'language-mismatch', detected: 'de', expected: 'en' });
     expect(t.statuses.at(-1).hint).toMatchObject({ type: 'language-mismatch' });
     t.scanner.dismissHint();
+    expect(t.scanner.getState().status.hint).toBe(null);
+  });
+
+  it('flags a mismatch from one long line that continues on the next page', async () => {
+    const detectLanguage = vi.fn(async () => 'de');
+    const t = setup({ detectLanguage });
+    t.scanner.start();
+    t.world.show([GB_DIALOG, 'long1']);
+    await t.clock.advance(2000);
+    expect(t.scanner.getState().status.hint).toBe(null);
+    t.world.show([GB_DIALOG, 'long2']);
+    await t.clock.advance(2000);
+    // one capture that grew: two checks with 60 letters of German text
+    expect(t.captures()).toHaveLength(1);
+    expect(detectLanguage).toHaveBeenCalledTimes(2);
+    expect(t.scanner.getState().status.hint).toEqual({ type: 'language-mismatch', detected: 'de', expected: 'en' });
+  });
+
+  it('needs more than one short line in another language', async () => {
+    const detectLanguage = vi.fn(async () => 'de');
+    const t = setup({ detectLanguage });
+    t.scanner.start();
+    t.world.show([GB_DIALOG, 'wild']);
+    await t.clock.advance(2000);
+    t.world.show([GB_DIALOG, 'empty']);
+    await t.clock.advance(2000);
+    t.world.show([GB_DIALOG, 'wild+plus']);
+    await t.clock.advance(2000);
+    expect(detectLanguage).toHaveBeenCalledTimes(1);
     expect(t.scanner.getState().status.hint).toBe(null);
   });
 

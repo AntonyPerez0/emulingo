@@ -65,7 +65,7 @@ const cy = (b) => b.y + b.h / 2;
 // slack for the crop margin). Framed boxes also lose one- and two-letter
 // specks sitting on their border (tile edges read as "a", "8"), and free
 // reads lose items without two letters or digits (map texture).
-function prepareItems(lines, container) {
+function prepareItems(lines, container, minScore = MIN_SCORE) {
   const framed = FRAMED.has(container.kind);
   const minAlnum = TEXT_BOX.has(container.kind) ? 1 : 2;
   const items = [];
@@ -73,7 +73,7 @@ function prepareItems(lines, container) {
     const text = String(l && l.text || '').replace(/\s+/gu, ' ').trim();
     const b = l && l.box;
     if (!text || !b || !(b.w >= 2) || !(b.h >= 3)) continue;
-    if (typeof l.score === 'number' && l.score < MIN_SCORE) continue;
+    if (typeof l.score === 'number' && l.score < minScore) continue;
     const x = cx(b), y = cy(b);
     const dx = Math.min(x - container.x, container.x + container.w - x);
     const dy = Math.min(y - container.y, container.y + container.h - y);
@@ -260,6 +260,14 @@ function cellText(cell, kind, ctx) {
   return cleanLine(cell.text, { kind, isLastLine: kind === 'dialog', lang: ctx.lang, isKnown: ctx.isKnown });
 }
 
+// Gen 1's battle menu (FIGHT PkMn / ITEM RUN): the PK and MN ligature
+// tiles are no letters the recogniser knows and come back as one or two
+// stray letters ("EN", "P"). Next to FIGHT and RUN such an item is PkMn.
+function fixPkMnItem(items) {
+  if (!items.includes('FIGHT') || !items.includes('RUN')) return items;
+  return items.map((t) => (/^\p{L}{1,2}$/u.test(t) ? 'PkMn' : t));
+}
+
 function menuRegion(cells, ctx) {
   const kept = [];
   for (const cell of cells.sort((a, b) => a.row - b.row || a.box.x - b.box.x)) {
@@ -268,7 +276,7 @@ function menuRegion(cells, ctx) {
     kept.push({ text, cell });
   }
   if (!kept.length) return null;
-  const items = normalizeMenuCase(kept.map((k) => k.text));
+  const items = fixPkMnItem(normalizeMenuCase(kept.map((k) => k.text)));
   if (letterCount(items.join('')) < 3) return null;
   const scores = kept.map((k) => k.cell.score);
   return {
@@ -290,14 +298,15 @@ function blockDialog(block, ctx) {
 // lines: engine Lines ({text, score, box} in native px); container: the
 // tracker's Container; frame: {w, h}. opts.lang selects language rules
 // (Spanish ¡/¿, French spacing), opts.isKnown(word) overrides the
-// vocabulary check used to merge split letters.
+// vocabulary check used to merge split letters, opts.minScore the line
+// confidence floor (lower for Tesseract, whose scores run lower).
 export function buildRegions(lines, container, frame, opts = {}) {
   if (!container) return [];
   const box = container.w > 0 && container.h > 0
     ? container
     : { ...container, x: 0, y: 0, w: frame ? frame.w : 1e6, h: frame ? frame.h : 1e6 };
   const ctx = { lang: opts.lang || 'en', isKnown: opts.isKnown, lenient: TEXT_BOX.has(container.kind) };
-  const items = prepareItems(lines, box);
+  const items = prepareItems(lines, box, typeof opts.minScore === 'number' ? opts.minScore : MIN_SCORE);
   if (!items.length) return [];
   const metrics = measure(items);
   // drop specks far smaller than the text around them

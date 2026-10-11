@@ -9,9 +9,10 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* Keep focused elements clear of the sticky header and bottom tab bar (WCAG 2.4.11). */
-  scroll-padding-top: calc(var(--header-h) + var(--safe-top) + var(--space-4));
-  scroll-padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--space-4));
+  /* Keep focused elements clear of the sticky header, the bottom tab bar and
+     any toasts on screen (toast.js sets --toast-top/--toast-bottom) (WCAG 2.4.11). */
+  scroll-padding-top: max(calc(var(--header-h) + var(--safe-top) + var(--space-4)), calc(var(--toast-top, 0px) + var(--space-2)));
+  scroll-padding-bottom: max(calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--space-4)), calc(var(--toast-bottom, 0px) + var(--space-2)));
   scrollbar-color: var(--scrollbar) transparent;
 }
 

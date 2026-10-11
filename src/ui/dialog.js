@@ -96,9 +96,24 @@ export function openDialog(options = {}, extra = {}) {
   const closed = new Promise((r) => { resolveClosed = r; });
   let result;
 
+  // A body that scrolls with no control inside (e.g. the shortcut list on a
+  // short screen) must take focus itself, or keyboard users can't scroll it.
+  const syncScrollFocus = () => {
+    const scrolls = body.scrollHeight > body.clientHeight + 1;
+    const hasControl = Array.from(body.querySelectorAll('input, select, textarea, button, a[href], [tabindex]:not([tabindex="-1"])')).some(isFocusable);
+    if (scrolls && !hasControl) {
+      body.tabIndex = 0;
+      body.setAttribute('role', 'region');
+      body.setAttribute('aria-labelledby', `${id}-title`);
+    } else if (body.getAttribute('tabindex') === '0') {
+      for (const a of ['tabindex', 'role', 'aria-labelledby']) body.removeAttribute(a);
+    }
+  };
+
   const finish = () => {
     if (settled) return;
     settled = true;
+    window.removeEventListener('resize', syncScrollFocus);
     setScrollLock(-1);
     el.remove();
     returnFocusTo([returnFocus, opener]);
@@ -167,6 +182,8 @@ export function openDialog(options = {}, extra = {}) {
   setScrollLock(1);
   if (typeof el.showModal === 'function') el.showModal();
   else el.setAttribute('open', '');
+  syncScrollFocus();
+  window.addEventListener('resize', syncScrollFocus);
 
   // Initial focus: explicit autofocus, else the first field in the body, else the primary action, else Close.
   const initial = el.querySelector('[autofocus], [data-autofocus]')

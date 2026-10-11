@@ -19,7 +19,7 @@ import { langName } from '../../../core/language.js';
 import { createFrameSource } from '../../../core/ocr/capture.js';
 import { createContainerTracker } from '../../../core/ocr/containers.js';
 import { createOcrEngine } from '../../../core/ocr/engine.js';
-import { correctText, hasDictionary, warmSpeller } from '../../../core/ocr/correct.js';
+import { correctText, hasDictionary, warmSpeller, getCorrector } from '../../../core/ocr/correct.js';
 import { createScanner } from '../../../core/scanner.js';
 import { normalizeForCompare } from '../../../core/ocr/dialog.js';
 import { announce } from '../../a11y.js';
@@ -47,10 +47,19 @@ export function createOcrSession({ onStatus = () => {}, onCapture = () => {}, on
   const frameSource = createFrameSource({ getCanvas: emu.getCanvas, getVideoDims: emu.getVideoDims });
   const tracker = createContainerTracker({});
 
-  // Only for languages with a dictionary, and only while "Fix common misreads" is on.
-  const correct = (text, lang) => (store.get('spellCheck') !== false && hasDictionary(lang)
-    ? correctText(text, lang)
-    : Promise.resolve(text));
+  // Only for languages with a dictionary, and only while "Fix common misreads"
+  // is on. While the dictionary is still loading (a download and a 1–2 s
+  // build when a session starts) a line shows as read instead of waiting out
+  // the scanner's 2 s budget; the rejection keeps it out of the scanner's
+  // correction memo, so the same text is corrected once the speller is ready.
+  const correct = (text, lang) => {
+    if (store.get('spellCheck') === false || !hasDictionary(lang)) return Promise.resolve(text);
+    if (!getCorrector().isReady(lang)) {
+      warm(lang);
+      return Promise.reject(new Error('The spelling dictionary is still loading.'));
+    }
+    return correctText(text, lang);
+  };
 
   scanner = createScanner({
     frameSource,
@@ -69,6 +78,7 @@ export function createOcrSession({ onStatus = () => {}, onCapture = () => {}, on
   const spokenByCapture = new Map(); // capture id -> dialog text already spoken
   const menusRecorded = new Set();
   const historyAlias = new Map(); // capture id -> id of the history entry showing the same line
+  const untranslated = new Set(); // `${captureId}|${sentence}` whose translation failed
   let cardsAdded = 0;
   let lastLiveId = null;
   let lastLive = null;
@@ -117,9 +127,25 @@ export function createOcrSession({ onStatus = () => {}, onCapture = () => {}, on
       translation = '';
     }
     if (disposed) return;
-    recordCapture([{ text: sentence, kind: 'dialog', translation }], c.src, c.tgt);
+    const key = `${c.id}|${normalizeForCompare(sentence)}`;
+    const retake = untranslated.has(key);
+    if (!translation) {
+      // Offline or busy: the sentence is counted now and offered again when
+      // its line is retried or continues, so it still gets its translation
+      // and its flashcard.
+      sentences.release(c.id, sentence);
+      if (retake) return;
+      untranslated.add(key);
+      if (untranslated.size > 100) untranslated.delete(untranslated.values().next().value);
+    } else {
+      untranslated.delete(key);
+    }
+    recordCapture([{ text: sentence, kind: 'dialog', translation }], c.src, c.tgt, { seen: !retake });
     if (store.get('announceLines')) {
-      announce(translation ? `${sentence} ${langName(c.tgt)}: ${translation}` : sentence);
+      // each part in its own language, so screen readers switch voice
+      announce(translation
+        ? [{ text: sentence, lang: c.src }, `${langName(c.tgt)}:`, { text: translation, lang: c.tgt }]
+        : [{ text: sentence, lang: c.src }]);
     }
     // a name or a cry that comes back unchanged ("PIKACHU!") teaches nothing
     const teaches = translation && normalizeForCompare(translation) !== normalizeForCompare(sentence);

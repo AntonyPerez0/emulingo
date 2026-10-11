@@ -18,6 +18,10 @@ import * as idb from './idb.js';
 import { idbGet, idbSet, idbDel, idbKeys } from './idb.js';
 import { isZip, is7z, listZipEntries, findEntry, extractEntry, extOf, baseName } from './zip.js';
 import { stemOf, deleteEjsSaveFiles } from './saves.js';
+import { isQuotaError } from './utils.js';
+
+// 'not-saved': playable this session only; 'storage-full' says why (else blocked storage)
+const notSaved = (warnings, err) => [...warnings, 'not-saved', ...(isQuotaError(err) ? ['storage-full'] : [])];
 
 export const INDEX_KEY = 'roms:index';
 const V1_INDEX_KEY = 'emulingo:roms';
@@ -539,14 +543,14 @@ export async function importRomFile(file, { core: chosen = null } = {}) {
     if (!list) return { rom: rec, bytes: payload, duplicate: false, persisted: false, warnings: [...warnings, 'not-saved'] };
     try {
       await idbSet(romKeys.bytes(id), ownBuffer(payload));
-    } catch {
-      return { rom: rec, bytes: payload, duplicate: false, persisted: false, warnings: [...warnings, 'not-saved'] };
+    } catch (err) {
+      return { rom: rec, bytes: payload, duplicate: false, persisted: false, warnings: notSaved(warnings, err) };
     }
     try {
       await writeIndex([rec, ...list]);
-    } catch {
+    } catch (err) {
       await idbDel(romKeys.bytes(id)).catch(() => {});
-      return { rom: rec, bytes: payload, duplicate: false, persisted: false, warnings: [...warnings, 'not-saved'] };
+      return { rom: rec, bytes: payload, duplicate: false, persisted: false, warnings: notSaved(warnings, err) };
     }
     return { rom: rec, bytes: payload, duplicate: false, persisted: true, warnings };
   });
@@ -557,14 +561,15 @@ export async function importRomFile(file, { core: chosen = null } = {}) {
 async function storeDuplicate(list, dup, hex, payload, warnings) {
   dup.added = Date.now();
   dup.sha1 = dup.sha1 || hex;
-  let persisted = true;
+  let failure = null;
   try {
     // the bytes may have been lost (quota, manual cleanup): store them again
     const present = await idbKeys(romKeys.bytes(dup.id));
     if (!present.includes(romKeys.bytes(dup.id))) await idbSet(romKeys.bytes(dup.id), ownBuffer(payload));
     await writeIndex(list);
-  } catch { persisted = false; }
-  return { rom: { ...dup }, bytes: payload, duplicate: true, persisted, warnings: persisted ? warnings : [...warnings, 'not-saved'] };
+  } catch (err) { failure = err || new Error('not saved'); }
+  const persisted = !failure;
+  return { rom: { ...dup }, bytes: payload, duplicate: true, persisted, warnings: persisted ? warnings : notSaved(warnings, failure) };
 }
 
 // ------------------------------------------------------------- delete & sweep

@@ -213,7 +213,9 @@ export function extractWords(text, src, minLen = store.get('minWordLen') || 3) {
 // translation when given), and words from every region are seeded as
 // 'word' entries. Each entry's count goes up at most once per call.
 // regions: [{ text, kind: 'dialog'|'menu'|'label'|'line', translation? }]
-export function recordCapture(regions, src, tgt, { minLen } = {}) {
+// { seen: false } only fills in missing translations of entries already
+// counted (a sentence translated after a failed first try).
+export function recordCapture(regions, src, tgt, { minLen, seen = true } = {}) {
   const result = { lines: 0, words: 0 };
   if (!isLang(src) || !Array.isArray(regions)) return result;
   const now = Date.now();
@@ -225,7 +227,9 @@ export function recordCapture(regions, src, tgt, { minLen } = {}) {
     if (!e) {
       const existing = find(kind, src, text);
       if (existing) {
-        e = { ...existing, translations: { ...existing.translations }, count: existing.count + 1, lastSeen: now };
+        e = seen
+          ? { ...existing, translations: { ...existing.translations }, count: existing.count + 1, lastSeen: now }
+          : { ...existing, translations: { ...existing.translations } };
       } else {
         e = newEntry(kind, text, src, { now });
         result[kind === 'line' ? 'lines' : 'words']++;

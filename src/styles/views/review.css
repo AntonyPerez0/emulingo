@@ -59,7 +59,6 @@
   margin-top: var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
 }
 
 .review-start__streak .icon {
@@ -184,6 +183,11 @@
 .review-card__lang .badge {
   letter-spacing: normal;
   text-transform: none;
+}
+
+/* no chips: no gap either, so the language name stays centred */
+.review-card__lang > :empty {
+  display: none;
 }
 
 .review-card__front {

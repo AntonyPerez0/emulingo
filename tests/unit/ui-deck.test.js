@@ -107,7 +107,7 @@ describe('populated deck', () => {
     const danke = rows().find((r) => r.querySelector('.lv-term').textContent === 'Danke');
     expect(danke.querySelector('.lv-row__meta').textContent).toContain('Due now');
     const empty = rows().find((r) => r.querySelector('.lv-term').textContent === '=SUMME(A1)');
-    expect(empty.querySelector('.lv-translation--empty').textContent).toBe('No translation yet');
+    expect(empty.querySelector('.lv-translation--empty').textContent).toBe('Not translated yet');
   });
 
   it('filters by stage', () => {

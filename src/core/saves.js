@@ -101,8 +101,9 @@ export function sameFiles(a, b) {
 // before the core boots (EmulatorJS's 'saveDatabaseLoaded' event) so the
 // game reads them at power-on. With `stem`, files saved under another name
 // are left for relocateFiles() (written now they would only be strays).
+// `force` writes them whatever the dates (a save restored from a backup).
 // Returns the paths written.
-export function restoreSaveFiles(FS, mirror, { stem = null } = {}) {
+export function restoreSaveFiles(FS, mirror, { stem = null, force = false } = {}) {
   const files = mirror && mirror.files;
   if (!FS || !files || typeof files !== 'object') return [];
   const written = [];
@@ -114,7 +115,7 @@ export function restoreSaveFiles(FS, mirror, { stem = null } = {}) {
     const st = statOrNull(FS, path);
     // 1 s of slack: IDBFS stores timestamps with millisecond precision but
     // some FS backends round them
-    if (st && mtimeOf(st) >= mtime - 1000) continue;
+    if (!force && st && mtimeOf(st) >= mtime - 1000) continue;
     try {
       mkdirp(FS, dirname(path));
       FS.writeFile(path, data);

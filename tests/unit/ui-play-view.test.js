@@ -16,7 +16,8 @@ const emu = vi.hoisted(() => ({
   calls: [],
   autostart: null,
   autoSave: false,
-  startGate: null
+  startGate: null,
+  fullscreen: true
 }));
 
 vi.mock('../../src/core/emulator.js', () => {
@@ -49,6 +50,7 @@ vi.mock('../../src/core/emulator.js', () => {
     restart: log('restart'),
     mute: (on) => on,
     toggleFullscreen: async () => false,
+    canFullscreen: () => emu.fullscreen,
     ejectAndReload: (id) => { emu.calls.push(['ejectAndReload', id]); return new Promise(() => {}); }
   };
 });
@@ -71,7 +73,7 @@ vi.mock('../../src/core/rom.js', () => {
 });
 
 vi.mock('../../src/ui/views/play/session.js', () => ({
-  createOcrSession: () => ({
+  createOcrSession: (opts) => (emu.session = opts, {
     scanner: { getState: () => ({ stats: {}, status: { state: 'watching' } }) },
     start() {}, pause() {}, resume() {}, setZone() {}, dismissHint() {}, dispose() {},
     scanNow: async () => null,
@@ -123,6 +125,7 @@ beforeEach(() => {
   emu.autostart = null;
   emu.autoSave = false;
   emu.startGate = null;
+  emu.fullscreen = true;
   store.set('source', 'de');
   store.set('target', 'en');
   store.set('onboarded', true);
@@ -181,6 +184,33 @@ describe('Play view', () => {
     await wait(30);
     expect(restart.hasAttribute('aria-disabled')).toBe(false);
     expect(section.querySelector('.tb[data-action="translate-now"]').hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it('offers Fullscreen only where the browser can do it (not on iPhone Safari)', async () => {
+    let { section } = await mountView();
+    expect(section.querySelector('.tb[data-action="fullscreen"]')).not.toBe(null);
+    expect(section.querySelector('#play-more-fullscreen')).not.toBe(null);
+    emu.fullscreen = false;
+    ({ section } = await mountView());
+    expect(section.querySelector('[data-action="fullscreen"]')).toBe(null);
+    // the rest of the toolbar is untouched
+    expect(section.querySelector('.tb[data-action="mute"]')).not.toBe(null);
+  });
+
+  it('switches the game language before the target, so the misread line is not re-translated first', async () => {
+    store.set('source', 'de');
+    store.set('target', 'en');
+    const { section } = await mountView();
+    section.querySelector('.rom-card [data-action="play"]').click();
+    await wait(50);
+    const changes = [];
+    const off = store.subscribe((key, value) => changes.push([key, value]));
+    emu.session.onStatus({ state: 'watching', message: '', hint: { type: 'language-mismatch', detected: 'en', expected: 'de' } });
+    section.querySelector('[data-action="hint-switch"]').click();
+    off();
+    expect(changes[0]).toEqual(['source', 'en']);
+    expect(changes[1][0]).toBe('target');
+    expect(store.get('target')).not.toBe('en');
   });
 
   it('labels the game screen once it runs', async () => {

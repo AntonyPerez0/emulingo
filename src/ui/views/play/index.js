@@ -120,7 +120,8 @@ function setHeader(r) {
   if (r) {
     render(title, html`<span class="visually-hidden">Play: </span>${titleOf(r)}`);
     const sys = rom.systemFor(rom.resolveCore(r, store.get('core')));
-    sub.textContent = sys ? sys.name : '';
+    // one core plays both: name the console this game is for
+    sub.textContent = sys && sys.core === 'gb' ? (r.ext === 'gbc' ? 'Game Boy Color' : 'Game Boy') : (sys ? sys.name : '');
     ui.page.querySelector('[data-game-heading]').textContent = `Game: ${titleOf(r)}`;
   } else {
     title.textContent = 'Play';
@@ -269,10 +270,22 @@ async function onStarted(record, system) {
   if (emu.isUserPaused() && ocr) ocr.pause('emulator');
   announce(`${titleOf(record)} is running. Press Escape to leave the game${shortcutsEnabled() ? ', and T to translate the screen' : ''}.`);
   if (visible) requestAnimationFrame(() => emu.handleResize());
+  // EmulatorJS flashes its pad on resize (250 ms): read it once that's over
+  requestAnimationFrame(syncTouchDock);
+  setTimeout(syncTouchDock, 600);
 
   let hasResume = false;
   try { hasResume = await emu.hasAutoSave(record.id); } catch { hasResume = false; }
   if (hasResume) showResumePrompt();
+}
+
+// On touch devices EmulatorJS draws its on-screen pad over the bottom of the
+// game, where most games show their text: the stage docks it underneath.
+function syncTouchDock() {
+  const pad = document.querySelector('#game .ejs_virtualGamepad_parent');
+  const on = !!pad && pad.style.display !== 'none' && pad.style.opacity !== '0';
+  ui.stage.setTouchDock(on);
+  if (visible) emu.handleResize();
 }
 
 // ---- "Resume where you left off?" ------------------------------------------------
@@ -410,9 +423,33 @@ function openGameControls() {
   // move keyboard users into the dialog EmulatorJS just opened
   requestAnimationFrame(() => {
     const popup = openEjsPopup();
+    if (popup) labelEjsControls(popup);
     const first = popup && popup.querySelector('button, [tabindex], input, select');
     if (first) first.focus();
   });
+}
+
+// EmulatorJS's key-mapping popup ships unnamed fields (two per button), tabs
+// outside a tablist and a select named only by its title: name them so screen
+// readers can tell "A: keyboard key" from "A: gamepad button".
+function labelEjsControls(popup) {
+  const bar = popup.querySelector('.ejs_control_player_bar');
+  if (bar && bar.querySelector('[role="tab"]')) {
+    bar.setAttribute('role', 'tablist');
+    bar.setAttribute('aria-label', 'Player');
+  }
+  for (const sel of popup.querySelectorAll('select[title^="gamepad"]')) sel.setAttribute('aria-label', 'Connected gamepad');
+  for (const row of popup.querySelectorAll('[data-label]')) {
+    const name = row.dataset.label;
+    const [pad, key] = row.querySelectorAll('input[type="text"]');
+    if (pad) pad.setAttribute('aria-label', `${name}: gamepad button`);
+    if (key) key.setAttribute('aria-label', `${name}: keyboard key`);
+    for (const b of row.querySelectorAll('button, .ejs_control_set_button')) {
+      if (/^\s*set\s*$/i.test(b.textContent || '')) b.setAttribute('aria-label', `Set ${name}`);
+    }
+  }
+  const title = popup.querySelector('h4');
+  if (title) title.setAttribute('aria-level', '2');
 }
 
 function openEjsPopup() {
@@ -537,8 +574,11 @@ function addToDeck(c) {
 
 function switchLanguage(code) {
   if (!code) return;
-  if (store.get('target') === code) store.set('target', suggestTarget(code));
+  // source first: changing the target first would re-translate the misread
+  // line into it as one more history entry before the line is read again
+  const clash = store.get('target') === code;
   store.set('source', code);
+  if (clash) store.set('target', suggestTarget(code));
   if (ocr) ocr.dismissHint();
   announce(`Game language changed to ${langName(code)}.`);
 }
@@ -597,7 +637,8 @@ function onEmulatorEvent(type, detail = {}) {
     const hadFocus = ui.resume.contains(document.activeElement);
     hideResumePrompt();
     if (hadFocus) ui.toolbar.focusTranslate();
-  } else if (type === 'error' && detail.phase === 'save') {
+  } else if (type === 'error' && detail.phase === 'save' && detail.slot !== 'manual') {
+    // (Quick save reports its own failure: one toast per click)
     toast(detail.message || 'Couldn’t save your progress.', { kind: detail.code === 'storage-full' ? 'error' : 'warning' });
   }
 }
@@ -677,6 +718,8 @@ function mount(section) {
     onChooseAnother: () => switchTo(null)
   });
   ui.toolbar = createToolbar($('[data-toolbar]'), { onAction: onToolbar, zoneEditorId: 'play-zone-editor' });
+  // iPhone Safari has no element fullscreen: a Fullscreen button there would do nothing
+  if (!emu.canFullscreen()) ui.toolbar.remove('fullscreen');
   ui.popover = createWordPopover({
     host: $('[data-popover-host]'),
     onChange: (open) => ui.live && ui.live.setPopoverOpen(open),

@@ -23,7 +23,11 @@
 //   node tests/e2e-qa/ocr-flow.e2e.mjs [--only main,hud,mismatch,tesseract,phone]
 //        [--port N] [--idle 60] [--json out.json] [--headed]
 //
-// Translation uses the real Google endpoint through $HTTPS_PROXY. Starts
+// Translation uses the real Google endpoint through $HTTPS_PROXY. A request
+// to a translation service that the network drops (Chromium logs it as a CORS
+// or net:: console error) is counted as a network drop, not a page error: the
+// app retries on its own, and each page must still end with a translation.
+// Starts
 // Vite (no HMR, no watching) on the first free port from 5482. Prints
 // PASS/FAIL lines and a measurement summary; exits 1 on failure.
 
@@ -138,11 +142,31 @@ async function newContext(browser, router, { viewport = { width: 1440, height: 9
   return context;
 }
 
+const TRANSLATION_HOSTS = /^https:\/\/(translate\.googleapis\.com|clients5\.google\.com|api\.mymemory\.translated\.net)\//;
+const networkDrops = [];
+
+// Chromium's own console line for a translation request the network dropped:
+// "Access to fetch at '<url>' … blocked by CORS policy" (an error response
+// without CORS headers), or "Failed to load resource: …" (net:: error or HTTP
+// status) whose location is that URL. App code logging has no such location.
+function isTranslationDrop(m) {
+  const t = m.text();
+  const at = /^Access to fetch at '([^']+)'/.exec(t);
+  if (at) return TRANSLATION_HOSTS.test(at[1]);
+  return /^Failed to load resource: /.test(t) && TRANSLATION_HOSTS.test(m.location()?.url || '');
+}
+
 function watchErrors(page, label, errors = []) {
   page.on('pageerror', (e) => errors.push(`${label} pageerror: ${e.message}`));
+  page.on('requestfailed', (r) => {
+    if (TRANSLATION_HOSTS.test(r.url())) networkDrops.push(`${label}: ${r.failure()?.errorText} ${r.url().slice(0, 120)}`);
+  });
   page.on('console', (m) => {
     const t = m.text();
+    if (m.type() === 'error' && isTranslationDrop(m)) return;
     if (m.type() === 'error' && !/Removing initializer|Wake Lock|wakeLock|favicon/i.test(t)) errors.push(`${label} console.error: ${t}`);
+    // a failed translation the scanner retries by itself; recovery is checked per page
+    if (m.type() === 'warning' && /^\[scanner\] translation failed TranslateError/.test(t)) return;
     if (m.type() === 'warning' && /\[scanner\]|\[play\]/.test(t)) errors.push(`${label} warn: ${t}`);
   });
   return errors;
@@ -554,6 +578,8 @@ async function run() {
     fs.rmSync(romDir, { recursive: true, force: true });
   }
   if (router.stats.missing.length) console.log('INFO CDN requests without a local copy:', [...new Set(router.stats.missing)].slice(0, 10));
+  measures.networkDrops = networkDrops;
+  if (networkDrops.length) console.log(`note: the network dropped ${networkDrops.length} translation request(s); the app recovered:\n  ${networkDrops.join('\n  ')}`);
   console.log('\nMEASUREMENTS', JSON.stringify(measures, null, 2));
   if (JSON_OUT) fs.writeFileSync(JSON_OUT, JSON.stringify({ results, measures }, null, 2));
   const failed = results.filter((r) => !r.ok);

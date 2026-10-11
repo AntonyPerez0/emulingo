@@ -199,7 +199,7 @@ bench/           OCR bench: generated game screens, adapters, metrics
 
 ### Unit tests
 
-`npm test` runs about 1,100 tests in Node, with jsdom for DOM code and an in-memory IndexedDB.
+`npm test` runs about 1,150 tests in Node, with jsdom for DOM code and an in-memory IndexedDB.
 
 ### End-to-end tests
 
@@ -216,7 +216,7 @@ The suites drive headless Chromium with [Playwright](https://playwright.dev) (ru
 
 ### OCR bench
 
-`npm run bench:ocr` renders 42 Pokémon-style screens (original art and fonts) in four presentations, from a sharp 4× scale to a blurry phone screen, runs the OCR on each and scores it against the known text. On this bench, dialogue is read with 2.8 % character errors (Emulingo 1: 27.1 %), with no text invented on screens without any, and without blocking the page. See [bench/README.md](bench/README.md).
+`npm run bench:ocr` renders 42 Pokémon-style screens (original art and fonts) in four presentations, from a sharp 4× scale to a blurry phone screen, runs the OCR on each and scores it against the known text. On this bench, dialogue is read with 0.1 % character errors and 96 % of dialogue lines are exactly right (Emulingo 1: 27.1 % errors), menus with 3.8 % (Emulingo 1: 73.7 %), with no text invented on screens without any, and without blocking the page (Emulingo 1 froze it for about 1.2 s per read). See [bench/README.md](bench/README.md).
 
 ## Hosting on GitHub Pages
 

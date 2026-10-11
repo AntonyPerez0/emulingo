@@ -1,0 +1,586 @@
+/* Settings view: a centred column of section cards (page--narrow, 720 px).
+   Rows inside a section are separated by hairlines; labels and hints sit on
+   the left and controls on the right, stacking on narrow screens. */
+
+.settings {
+  --settings-row-gap: var(--space-4);
+}
+
+/* ---- Section links ---- */
+
+.settings-toc {
+  margin-bottom: var(--space-6);
+}
+
+.settings-toc__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-toc__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+
+.settings-toc__link:hover {
+  border-color: var(--border-control);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+@media (pointer: coarse) {
+  .settings-toc__link { min-height: 40px; }
+}
+
+/* ---- Sections ---- */
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.settings-section {
+  scroll-margin-top: calc(var(--header-h) + var(--safe-top) + var(--space-4));
+}
+
+.settings-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.settings-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-xl);
+  scroll-margin-top: calc(var(--header-h) + var(--safe-top) + var(--space-6));
+}
+
+.settings-section__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+}
+
+.card--danger .settings-section__icon {
+  background: var(--danger-soft-bg);
+  color: var(--danger-soft-fg);
+}
+
+.settings-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--settings-row-gap);
+}
+
+/* Every row after the first gets a hairline; a subheading starts a new group instead. */
+.settings-section__body > :is(.field, .switch-field, .settings-choice, .range-field, .settings-voice, .settings-block, .settings-action-row, .settings-about)
+  ~ :is(.field, .switch-field, .settings-choice, .range-field, .settings-voice, .settings-block, .settings-action-row) {
+  padding-top: var(--settings-row-gap);
+  border-top: 1px solid var(--border);
+}
+
+.settings-section__body > .settings-subhead + * {
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
+.settings-subhead {
+  margin-top: var(--space-2);
+  padding-top: var(--settings-row-gap);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settings-block > .settings-subhead,
+.settings-section__body > .settings-subhead:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-block > .settings-subhead {
+  margin-bottom: calc(var(--space-1) * -1);
+}
+
+/* Switch rows inside a block keep the block's rhythm */
+.settings-block > .switch-field {
+  padding-block: var(--space-1);
+}
+
+/* ---- "Saved" and action results ---- */
+
+.settings-saved,
+.settings-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.settings-saved {
+  margin-inline-start: auto;
+  min-height: 24px;
+}
+
+.settings-status {
+  align-items: flex-start;
+}
+
+.settings-saved .icon,
+.settings-status .icon {
+  flex: none;
+}
+
+.settings-status .icon {
+  margin-top: 2px;
+}
+
+.settings-saved:not(:empty),
+.settings-status:not(:empty) {
+  animation: settings-fade-in var(--duration-base) var(--ease-out);
+}
+
+/* Empty status and alert regions take no space but stay in the accessibility
+   tree: a live region that only appears together with its text (display:none
+   or [hidden] until then) is often not announced. Out of flow, so the
+   block's gap doesn't count them either. */
+.settings-status:empty,
+.settings-error:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@keyframes settings-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+
+.settings-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft-bg);
+  box-shadow: inset 4px 0 0 var(--danger);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.settings-error .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--danger);
+}
+
+/* ---- Text, notes and actions ---- */
+
+.settings-text {
+  color: var(--text);
+}
+
+.settings-text--muted {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.settings-text--sm {
+  font-size: var(--text-sm);
+}
+
+.settings-note-slot:empty {
+  display: none;
+}
+
+.settings-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--info-soft-bg);
+  box-shadow: inset 4px 0 0 var(--info);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.settings-note .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info);
+}
+
+.settings-note--warning {
+  background: var(--warning-soft-bg);
+  box-shadow: inset 4px 0 0 var(--warning);
+}
+
+.settings-note--warning .icon {
+  color: var(--warning);
+}
+
+.settings-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.settings-row-actions--start {
+  justify-content: flex-start;
+}
+
+.settings-voice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Range labels match the inline rows */
+.settings .range-field .field__label {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+/* Selects share one width so the control column lines up */
+@media (min-width: 560px) {
+  .settings .field--inline > .select {
+    width: 17.5rem;
+    max-width: 100%;
+  }
+}
+
+/* Number fields don't need the full control width */
+.settings .field--inline > .settings-number {
+  width: 8rem;
+  min-width: 0;
+  justify-self: end;
+}
+
+/* ---- Segmented choice laid out like an inline field ---- */
+
+.settings-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label control'
+    'hint control';
+  align-items: center;
+  column-gap: var(--space-6);
+  row-gap: 2px;
+}
+
+.settings-choice > .segmented-field {
+  display: contents;
+}
+
+.settings-choice .segmented-field > .field__label {
+  grid-area: label;
+  align-self: end;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+.settings-choice .segmented {
+  grid-area: control;
+  justify-self: end;
+}
+
+.settings-choice .segmented-field > .field__hint {
+  grid-area: hint;
+  align-self: start;
+}
+
+.settings-choice:not(:has(.field__hint)) .segmented-field > .field__label {
+  align-self: center;
+}
+
+@media (max-width: 559.98px) {
+  .settings-choice {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'label' 'hint' 'control';
+    row-gap: 6px;
+  }
+
+  .settings-choice .segmented {
+    justify-self: stretch;
+  }
+
+  .settings .field--inline > .settings-number {
+    justify-self: start;
+  }
+
+  .settings-row-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ---- Danger zone ---- */
+
+.settings-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.settings-action-row__text {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-action-row__title {
+  font-weight: var(--weight-medium);
+}
+
+/* ---- Privacy ---- */
+
+.settings-privacy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-privacy > li {
+  position: relative;
+  padding-inline-start: var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.settings-privacy > li::before {
+  content: '';
+  position: absolute;
+  top: 0.55em;
+  inset-inline-start: var(--space-1);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.settings-privacy strong {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+/* ---- About ---- */
+
+.settings-about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings-about__name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.settings-about code {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.settings-about > p:last-child {
+  margin-top: var(--space-2);
+}
+
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+  font-weight: var(--weight-medium);
+}
+
+.settings-shortcuts {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-shortcuts .shortcut-group__title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.settings-shortcuts__note {
+  margin-top: var(--space-3);
+}
+
+.settings-credits {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-credit {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-credit:first-child {
+  padding-top: 0;
+}
+
+.settings-credit:last-child {
+  border-bottom: 0;
+}
+
+.settings-credit__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-credit__name {
+  font-weight: var(--weight-semibold);
+}
+
+.settings-credit__use {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.settings-credit__parts {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.settings-credit__license {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* ---- Restore dialog (rendered in a <dialog> outside the view) ---- */
+
+.settings-import-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft-bg);
+  box-shadow: inset 4px 0 0 var(--warning);
+  font-size: var(--text-sm);
+}
+
+.settings-import-warnings__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-semibold);
+}
+
+.settings-import-warnings__title .icon {
+  color: var(--warning);
+}
+
+.settings-import-warnings ul {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  list-style: disc;
+}
+
+.settings-import-modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.settings-import-modes dt {
+  font-weight: var(--weight-semibold);
+}
+
+.settings-import-modes dd {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-saved:not(:empty),
+  .settings-status:not(:empty) {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .settings-toc__link,
+  .settings-note,
+  .settings-error,
+  .settings-import-warnings {
+    border: 1px solid CanvasText;
+  }
+
+  .settings-privacy > li::before {
+    background: CanvasText;
+  }
+}

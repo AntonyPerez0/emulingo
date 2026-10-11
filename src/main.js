@@ -86,7 +86,9 @@ function installErrorHandlers() {
   window.addEventListener('unhandledrejection', (e) => {
     const r = e.reason;
     if (r && r.name === 'AbortError') return;
-    report(r, 'unhandled rejection');
+    // Listeners added later (the emulator's wake-lock guard) may still handle
+    // it: Chromium runs window listeners in registration order, capture or not.
+    setTimeout(() => { if (!e.defaultPrevented) report(r, 'unhandled rejection'); }, 0);
   });
   // A new deploy removed a lazily loaded chunk: reload once to pick up the new build.
   window.addEventListener('vite:preloadError', (e) => {

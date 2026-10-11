@@ -1,0 +1,1451 @@
+/* Play view: setup card, game library, height-bound game stage, toolbar,
+   live translation card, word popover, recent lines and the text-area
+   editor. Only design tokens are used, except inside the game stage, which
+   is always dark (the game picture sits on black in both themes). */
+
+/* ---- Header -------------------------------------------------------------- */
+
+.play__header {
+  margin-bottom: var(--space-6);
+}
+
+/* While a game runs the header shrinks to one line, leaving room for the game. */
+.play[data-phase='loading'] .play__header,
+.play[data-phase='running'] .play__header,
+.play[data-phase='error'] .play__header {
+  margin-bottom: var(--space-4);
+}
+
+.play[data-phase='loading'] .play__title,
+.play[data-phase='running'] .play__title,
+.play[data-phase='error'] .play__title {
+  font-size: var(--text-xl);
+}
+
+.play[data-phase='loading'] .page-header__text,
+.play[data-phase='running'] .page-header__text,
+.play[data-phase='error'] .page-header__text {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.play[data-phase='loading'] .play__subtitle,
+.play[data-phase='running'] .play__subtitle,
+.play[data-phase='error'] .play__subtitle {
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 599.98px) {
+  .play[data-phase='loading'] .play__subtitle,
+  .play[data-phase='running'] .play__subtitle {
+    display: none;
+  }
+
+  .play[data-phase='running'] .play__header {
+    margin-bottom: var(--space-3);
+  }
+}
+
+/* ---- First-run setup ------------------------------------------------------- */
+
+.play__onboarding {
+  margin-bottom: var(--space-8);
+}
+
+.onboarding {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--border);
+}
+
+.onboarding::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--accent-solid);
+}
+
+.onboarding__intro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.onboarding__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+}
+
+.onboarding__title {
+  font-size: var(--text-xl);
+}
+
+.onboarding__lead {
+  max-width: 62ch;
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+}
+
+.onboarding__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .onboarding__form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6) var(--space-8);
+  }
+
+  .onboarding__footer {
+    grid-column: 1 / -1;
+  }
+}
+
+.onboarding__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.onboarding__num {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.onboarding__field {
+  flex: 1 1 auto;
+}
+
+.onboarding__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 var(--space-1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+
+.chip:hover {
+  background: var(--surface-2);
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+  font-weight: var(--weight-semibold);
+}
+
+.onboarding__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.onboarding__footer p {
+  flex: 1 1 280px;
+}
+
+/* ---- Library ---------------------------------------------------------------- */
+
+.library__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.library__title {
+  font-size: var(--text-xl);
+}
+
+.library__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+@media (min-width: 960px) {
+  .library:not(.library--empty) .library__grid {
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    align-items: start;
+  }
+}
+
+.library--empty .library__list,
+.library--empty .library__head {
+  display: none;
+}
+
+.rom-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rom-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.rom-card__art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+}
+
+.rom-card__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rom-card__title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.rom-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-2);
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.rom-card__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+@media (max-width: 479.98px) {
+  .rom-card {
+    flex-wrap: wrap;
+  }
+
+  .rom-card__main {
+    flex-basis: calc(100% - 64px);
+  }
+
+  .rom-card__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6);
+  border: 2px dashed var(--border-control);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+
+.dropzone:hover {
+  border-color: var(--text-muted);
+}
+
+.library--empty .dropzone {
+  padding: var(--space-12) var(--space-6);
+}
+
+.dropzone--over,
+.dropzone--over:hover {
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--accent-soft-bg);
+}
+
+.dropzone--busy {
+  cursor: progress;
+}
+
+.dropzone__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+}
+
+.dropzone__title {
+  font-size: var(--text-lg);
+}
+
+.dropzone__text {
+  max-width: 46ch;
+  color: var(--text-muted);
+}
+
+.dropzone__privacy {
+  max-width: 44ch;
+  text-wrap: balance;
+}
+
+.dropzone__privacy .icon {
+  display: inline-block;
+  margin-inline-end: 6px;
+  vertical-align: -3px;
+}
+
+.dropzone__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 52ch;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  text-align: start;
+}
+
+.dropzone__error .icon {
+  margin-top: 2px;
+}
+
+/* ---- Session layout -------------------------------------------------------------- */
+
+/* "Skip to live translation": hidden until it has keyboard focus */
+.play-skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.play-skip:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.play-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 960px) {
+  .play-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+    align-items: start;
+  }
+
+  /* The translation stays beside the game while the page scrolls. */
+  .play-side {
+    position: sticky;
+    top: calc(var(--header-h) + var(--safe-top) + var(--space-4));
+    max-height: calc(100dvh - var(--header-h) - var(--safe-top) - var(--space-8));
+    margin: calc(var(--space-1) * -1);
+    padding: var(--space-1);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+}
+
+@media (min-width: 1200px) {
+  .play-layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+}
+
+.play-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.play-main {
+  min-width: 0;
+}
+
+.game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ---- Stage: aspect ratio per system, bound by the viewport height ------------------- */
+
+.stage {
+  --game-ar: 1.1111;
+  /* page header, toolbar, key hint and spacing around the stage */
+  --play-chrome: 252px;
+  --stage-min-h: 220px;
+  --stage-max-h: calc(100dvh - var(--header-h) - var(--safe-top) - var(--bottom-nav-h) - var(--safe-bottom) - var(--play-chrome));
+  position: relative;
+  width: min(100%, calc(max(var(--stage-min-h), var(--stage-max-h)) * var(--game-ar)));
+  aspect-ratio: var(--game-ar);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: #000;
+  box-shadow: 0 0 0 1px var(--border), var(--shadow-2);
+  /* The stage is always dark: overlays use the dark palette in both themes. */
+  color-scheme: dark;
+}
+
+.stage > #game {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The game has the keyboard: one clear ring around the whole stage. Without
+   :has() the ring goes inside the game screen instead (the stage clips). */
+.stage > #game:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+@supports selector(:has(*)) {
+  .stage > #game:focus {
+    outline: none;
+  }
+
+  .stage:has(> #game:focus) {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+  }
+}
+
+/* EmulatorJS's own control bar would cover the bottom of the screen, where
+   most games show their text. The toolbar below has the same controls, and
+   "Game controls…" in More opens its key settings. */
+.stage .ejs_menu_bar {
+  display: none !important;
+}
+
+@media (max-width: 767.98px) {
+  .stage {
+    --play-chrome: 200px;
+    --stage-min-h: 200px;
+    border-radius: var(--radius-md);
+  }
+}
+
+/* Editing the text area: a smaller game, so the editor fits below it. */
+body.play-zone-editing .stage {
+  --play-chrome: 470px;
+}
+
+@media (max-height: 560px) {
+  .stage {
+    --play-chrome: 160px;
+    --stage-min-h: 180px;
+  }
+}
+
+.stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.stage__overlay {
+  --text: #e8edf6;
+  --text-muted: #a3aec4;
+  --surface: #121826;
+  --surface-2: #182032;
+  --surface-3: #1f2940;
+  --border: #263049;
+  --border-control: #6b7a99;
+  --accent: #4ade80;
+  --accent-solid: #22c55e;
+  --accent-solid-hover: #4ade80;
+  --on-accent: #052e16;
+  --danger: #fca5a5;
+  --focus: #93c5fd;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: var(--space-5);
+  background: #0b0f17;
+  color: var(--text);
+}
+
+.stage__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 440px;
+  text-align: center;
+}
+
+.stage__icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #3b1219;
+  color: var(--danger);
+}
+
+.stage__title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.stage__title:focus {
+  outline: none;
+}
+
+.stage__text {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.stage__progress {
+  width: min(320px, 100%);
+  text-align: start;
+}
+
+.stage__details {
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.stage__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* ---- Controls under the game ------------------------------------------------------- */
+
+.play-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.play-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.tb-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tb-sep {
+  width: 1px;
+  height: 24px;
+  margin-inline: var(--space-1);
+  background: var(--border);
+}
+
+.tb-spacer {
+  flex: 1 1 auto;
+}
+
+.tb {
+  --btn-px: var(--space-3);
+  border-color: transparent;
+  background: transparent;
+}
+
+.tb:where(:not(.btn--primary, [aria-pressed='true'], [aria-disabled='true'])):hover {
+  background: var(--surface-2);
+}
+
+.tb.btn--primary {
+  background: var(--accent-solid);
+}
+
+/* Icon-only until there is room for labels; the label still names the button. */
+.tb__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tb:not(.tb--main) {
+  width: var(--btn-h);
+  padding: 0;
+}
+
+.tb--main .tb__label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+
+.tb__kbd {
+  height: 20px;
+  min-width: 20px;
+  margin-inline-start: var(--space-1);
+  border-color: currentColor;
+  background: transparent;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.tb--active,
+.tb[aria-expanded='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+}
+
+/* A dot on "Text area" while a custom area is in use */
+.tb--custom::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  inset-inline-end: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* Auto-translate keeps its label where there is room: the eye icon alone
+   doesn't say what the toggle does. The rest are icons with tooltips. */
+@media (min-width: 700px) and (max-width: 959.98px), (min-width: 1200px) {
+  .tb--labelled .tb__label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .tb.tb--labelled {
+    width: auto;
+    padding: 0 var(--btn-px);
+  }
+
+  .tb--labelled[data-tooltip]::after {
+    display: none;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .tb__kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .tb-sep {
+    display: none;
+  }
+
+  .play-toolbar {
+    gap: 2px;
+    padding: var(--space-1);
+  }
+}
+
+/* Single-key shortcuts switched off in Settings: don't advertise them. */
+.play--no-shortcuts .kbd-hint,
+.play--no-shortcuts .menu__hint {
+  display: none;
+}
+
+.key-hint {
+  max-width: 100%;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Touch-only devices play with the on-screen pad; the hint stays for screen readers. */
+@media (hover: none) and (pointer: coarse) {
+  .key-hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ---- "Resume where you left off?" ------------------------------------------------------ */
+
+.resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft-bg);
+  animation: drop-in var(--duration-base) var(--ease-out);
+}
+
+.resume__icon {
+  color: var(--accent-soft-fg);
+}
+
+.resume__text {
+  flex: 1 1 220px;
+  color: var(--text);
+}
+
+.resume__meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.resume__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---- Text area editor ------------------------------------------------------------------- */
+
+.zone-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.zone-rect {
+  position: absolute;
+  border: 2px dashed #4ade80;
+  border-radius: 3px;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
+  cursor: move;
+}
+
+.zone-rect:focus {
+  outline: none;
+}
+
+.zone-rect:focus-visible {
+  border-style: solid;
+  box-shadow: 0 0 0 3px #93c5fd, 0 0 0 9999px rgb(0 0 0 / 0.55);
+}
+
+.zone-rect__label {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #22c55e;
+  color: #052e16;
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.zone-rect__handle {
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #052e16;
+  border-radius: 50%;
+  background: #4ade80;
+  cursor: nwse-resize;
+}
+
+@media (pointer: coarse) {
+  .zone-rect__handle {
+    right: -14px;
+    bottom: -14px;
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* The emulator's on-screen pad would catch the drag. */
+body.play-zone-editing .ejs_virtualGamepad_parent {
+  display: none !important;
+}
+
+.zone-panel {
+  width: 100%;
+}
+
+.zone-editor {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  animation: drop-in var(--duration-base) var(--ease-out);
+}
+
+.zone-editor__title {
+  font-size: var(--text-md);
+}
+
+.zone-editor__desc {
+  max-width: 70ch;
+  margin-top: var(--space-1);
+}
+
+.zone-editor__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.zone-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zone-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* ---- Live translation ------------------------------------------------------------------- */
+
+.live {
+  padding: var(--space-5);
+}
+
+.live__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.live__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.live__status-msg {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.live__status-msg:empty {
+  display: none;
+}
+
+.live__status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.live__details > summary {
+  min-height: 32px;
+  color: var(--text-muted);
+}
+
+.live__detail-text {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.live__notices:not(:empty) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.live__notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.live__notice > .icon {
+  color: var(--text-muted);
+}
+
+.live__notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.live__notice--queued {
+  background: var(--accent-soft-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.live__notice--queued > .icon {
+  color: var(--accent-soft-fg);
+}
+
+.live__notice--transient {
+  min-height: 40px;
+  animation: fade-in var(--duration-base) var(--ease-out);
+}
+
+.live__content {
+  margin-top: var(--space-4);
+}
+
+.live .empty-state {
+  padding: var(--space-6) var(--space-2) var(--space-3);
+}
+
+.live .empty-state__title {
+  font-size: var(--text-lg);
+}
+
+.live__empty-hint {
+  margin-bottom: var(--space-3);
+  text-align: center;
+}
+
+.capture {
+  border-radius: var(--radius-md);
+  animation: fade-in var(--duration-base) var(--ease-out);
+}
+
+.capture:focus {
+  outline: none;
+}
+
+.capture:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.part__orig {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.part--dialog .part__orig {
+  font-size: var(--text-lg);
+  line-height: 1.65;
+}
+
+.words {
+  white-space: pre-line;
+}
+
+/* Words read as text, act as buttons */
+.word {
+  display: inline;
+  margin: 0 -2px;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--border-control);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.word:hover,
+.word[aria-expanded='true'] {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-fg);
+  text-decoration-color: currentColor;
+}
+
+.word:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.part__trans {
+  margin-top: var(--space-2);
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--accent);
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.part__trans--pending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-color: var(--border-control);
+  font-size: var(--text-sm);
+}
+
+.part__trans--pending .spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.part__trans--error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.part__retry {
+  color: var(--text);
+}
+
+.part__updating {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.capture__lowconf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-3);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.capture__also {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* Without a dialog the menus are the whole capture: no divider above them. */
+.capture:not(:has(.part--dialog)) .capture__also {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.capture__also-title {
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.also-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part--other .part__orig {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.part--other .part__trans {
+  margin-top: var(--space-1);
+  border-inline-start-width: 2px;
+  font-size: var(--text-sm);
+}
+
+.live__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.live__listen,
+.live__deck {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.live__listen:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+.live__added {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.live__added:hover {
+  text-decoration: underline;
+}
+
+/* ---- Word popover (bottom sheet on phones) ------------------------------------------------- */
+
+.wordpop {
+  position: fixed;
+  z-index: var(--z-popover);
+  width: min(320px, calc(100vw - 16px));
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  animation: scale-in var(--duration-base) var(--ease-out);
+}
+
+.wordpop--sheet {
+  right: 8px;
+  bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
+  left: 8px;
+  width: auto;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-3);
+  animation: rise-in var(--duration-base) var(--ease-out);
+}
+
+.wordpop__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.wordpop__eyebrow {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wordpop__term {
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+.wordpop__term:focus {
+  outline: none;
+}
+
+.wordpop__body {
+  margin-top: var(--space-3);
+}
+
+.wordpop__trans {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--accent);
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+
+.wordpop__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.wordpop__error > p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.wordpop__error > .btn {
+  margin-top: var(--space-2);
+}
+
+.wordpop__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* ---- Recent lines -------------------------------------------------------------------------------- */
+
+.recent {
+  padding: var(--space-5);
+}
+
+.recent__header {
+  margin-bottom: var(--space-2);
+}
+
+.recent .empty-state {
+  padding: var(--space-4) var(--space-2);
+}
+
+.recent .empty-state__title {
+  font-size: var(--text-md);
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 0;
+  list-style: none;
+}
+
+.recent-item + .recent-item {
+  border-top: 1px solid var(--border);
+}
+
+.recent-item__btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text);
+  text-align: start;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.recent-item__btn:hover {
+  background: var(--surface-2);
+}
+
+.recent-item__btn[aria-current='true'] {
+  background: var(--accent-soft-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.recent-item__btn:focus-visible {
+  outline-offset: -3px;
+}
+
+.recent-item__orig,
+.recent-item__trans {
+  display: -webkit-box;
+  grid-column: 1;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.recent-item__orig {
+  font-weight: var(--weight-medium);
+}
+
+.recent-item__trans {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.recent-item__time {
+  grid-row: 1;
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recent__more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.play-debug {
+  font-family: var(--font-mono);
+}
+
+/* ---- Touch and forced colours -------------------------------------------------------------------- */
+
+@media (pointer: coarse) {
+  .chip {
+    min-height: 44px;
+  }
+
+  .word {
+    padding-block: 3px;
+  }
+}
+
+@media (forced-colors: active) {
+  .stage,
+  .rom-card,
+  .dropzone,
+  .play-toolbar,
+  .wordpop,
+  .zone-editor,
+  .resume,
+  .live__notice,
+  .chip {
+    border: 1px solid CanvasText;
+  }
+
+  .word {
+    text-decoration-color: CanvasText;
+  }
+
+  .word[aria-expanded='true'],
+  .chip[aria-pressed='true'],
+  .recent-item__btn[aria-current='true'],
+  .tb--active {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .zone-rect {
+    border-color: Highlight;
+  }
+
+  .part__trans,
+  .wordpop__trans {
+    border-inline-start-color: CanvasText;
+  }
+}
+
+/* A hidden tooltip still counts as page width: near the right edge of a
+   phone it would add a sideways scroll. Only render it while it shows. */
+.play [data-tooltip]:not(:hover, :focus-visible)::after {
+  display: none;
+}

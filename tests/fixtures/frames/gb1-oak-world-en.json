@@ -1,0 +1,70 @@
+{
+ "id": "gb1-oak-world-en",
+ "platform": "gb",
+ "lang": "en",
+ "frameKind": "overworld-dialog",
+ "partial": false,
+ "palette": "dmg-green",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "world of POKéMON!"
+   ],
+   "text": "world of POKéMON!"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 33,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "dialog",
+   "x": 40,
+   "y": 112,
+   "w": 6,
+   "h": 7,
+   "px": 26
+  },
+  {
+   "role": "dialog",
+   "x": 56,
+   "y": 112,
+   "w": 12,
+   "h": 7,
+   "px": 34
+  },
+  {
+   "role": "dialog",
+   "x": 80,
+   "y": 112,
+   "w": 55,
+   "h": 7,
+   "px": 190
+  },
+  {
+   "role": "dialog",
+   "x": 138,
+   "y": 112,
+   "w": 2,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 114,
+   "w": 22,
+   "h": 5,
+   "px": 57
+  }
+ ]
+}

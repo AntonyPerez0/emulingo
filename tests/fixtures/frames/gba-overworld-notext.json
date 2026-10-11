@@ -1,0 +1,13 @@
+{
+ "id": "gba-overworld-notext",
+ "platform": "gba",
+ "lang": "en",
+ "frameKind": "no-text",
+ "partial": false,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [],
+ "text": []
+}

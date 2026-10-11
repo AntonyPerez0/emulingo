@@ -1,0 +1,119 @@
+{
+ "id": "gba-oak-hello-en",
+ "platform": "gba",
+ "lang": "en",
+ "frameKind": "overworld-dialog",
+ "partial": false,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "Hello there! Glad to meet you!",
+    "Welcome to the world of POKéMON!"
+   ],
+   "text": "Hello there! Glad to meet you! Welcome to the world of POKéMON!"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 118,
+   "w": 26,
+   "h": 10,
+   "px": 161
+  },
+  {
+   "role": "dialog",
+   "x": 41,
+   "y": 118,
+   "w": 32,
+   "h": 10,
+   "px": 179
+  },
+  {
+   "role": "dialog",
+   "x": 77,
+   "y": 118,
+   "w": 22,
+   "h": 10,
+   "px": 150
+  },
+  {
+   "role": "dialog",
+   "x": 103,
+   "y": 118,
+   "w": 12,
+   "h": 10,
+   "px": 66
+  },
+  {
+   "role": "dialog",
+   "x": 119,
+   "y": 118,
+   "w": 24,
+   "h": 10,
+   "px": 141
+  },
+  {
+   "role": "dialog",
+   "x": 147,
+   "y": 118,
+   "w": 20,
+   "h": 12,
+   "px": 124
+  },
+  {
+   "role": "dialog",
+   "x": 11,
+   "y": 134,
+   "w": 40,
+   "h": 10,
+   "px": 243
+  },
+  {
+   "role": "dialog",
+   "x": 55,
+   "y": 134,
+   "w": 12,
+   "h": 10,
+   "px": 66
+  },
+  {
+   "role": "dialog",
+   "x": 71,
+   "y": 134,
+   "w": 18,
+   "h": 10,
+   "px": 104
+  },
+  {
+   "role": "dialog",
+   "x": 93,
+   "y": 134,
+   "w": 28,
+   "h": 10,
+   "px": 158
+  },
+  {
+   "role": "dialog",
+   "x": 125,
+   "y": 134,
+   "w": 11,
+   "h": 10,
+   "px": 61
+  },
+  {
+   "role": "dialog",
+   "x": 140,
+   "y": 134,
+   "w": 44,
+   "h": 10,
+   "px": 328
+  }
+ ]
+}

@@ -1,0 +1,92 @@
+{
+ "id": "gba-start-menu-en",
+ "platform": "gba",
+ "lang": "en",
+ "frameKind": "start-menu",
+ "partial": false,
+ "palette": "gba",
+ "font": "gba",
+ "nativeW": 240,
+ "nativeH": 160,
+ "regions": [
+  {
+   "kind": "menu",
+   "lines": [
+    "POKéDEX",
+    "POKéMON",
+    "BAG",
+    "MAY",
+    "SAVE",
+    "OPTION",
+    "EXIT"
+   ],
+   "text": "POKéDEX POKéMON BAG MAY SAVE OPTION EXIT"
+  }
+ ],
+ "text": [
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 8,
+   "w": 42,
+   "h": 10,
+   "px": 298
+  },
+  {
+   "role": "menu",
+   "x": 183,
+   "y": 24,
+   "w": 5,
+   "h": 10,
+   "px": 34
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 24,
+   "w": 42,
+   "h": 10,
+   "px": 310
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 40,
+   "w": 18,
+   "h": 10,
+   "px": 145
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 56,
+   "w": 18,
+   "h": 10,
+   "px": 128
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 72,
+   "w": 24,
+   "h": 10,
+   "px": 168
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 88,
+   "w": 34,
+   "h": 10,
+   "px": 232
+  },
+  {
+   "role": "menu",
+   "x": 192,
+   "y": 104,
+   "w": 22,
+   "h": 10,
+   "px": 142
+  }
+ ]
+}

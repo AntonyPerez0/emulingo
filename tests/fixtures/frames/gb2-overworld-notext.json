@@ -1,0 +1,13 @@
+{
+ "id": "gb2-overworld-notext",
+ "platform": "gb",
+ "lang": "de",
+ "frameKind": "no-text",
+ "partial": false,
+ "palette": "gbc-day",
+ "font": "gb-thin",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [],
+ "text": []
+}

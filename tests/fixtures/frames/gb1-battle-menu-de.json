@@ -1,0 +1,218 @@
+{
+ "id": "gb1-battle-menu-de",
+ "platform": "gb",
+ "lang": "de",
+ "frameKind": "battle-menu",
+ "partial": false,
+ "palette": "gbc-blue",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "hud",
+   "lines": [
+    "TAUBSI",
+    ":L3",
+    "HP:"
+   ],
+   "text": "TAUBSI :L3 HP:"
+  },
+  {
+   "kind": "hud",
+   "lines": [
+    "BISASAM",
+    ":L5",
+    "HP:",
+    "7/ 20"
+   ],
+   "text": "BISASAM :L5 HP: 7/ 20"
+  },
+  {
+   "kind": "menu",
+   "lines": [
+    "KAMPF POKé",
+    "ITEM FLUCHT"
+   ],
+   "text": "KAMPF POKé ITEM FLUCHT"
+  }
+ ],
+ "text": [
+  {
+   "role": "hud",
+   "x": 8,
+   "y": 0,
+   "w": 5,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "hud",
+   "x": 16,
+   "y": 0,
+   "w": 30,
+   "h": 7,
+   "px": 103
+  },
+  {
+   "role": "hud",
+   "x": 40,
+   "y": 0,
+   "w": 14,
+   "h": 15,
+   "px": 55
+  },
+  {
+   "role": "hud",
+   "x": 16,
+   "y": 17,
+   "w": 12,
+   "h": 6,
+   "px": 33
+  },
+  {
+   "role": "hud",
+   "x": 80,
+   "y": 56,
+   "w": 6,
+   "h": 7,
+   "px": 28
+  },
+  {
+   "role": "hud",
+   "x": 89,
+   "y": 56,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "hud",
+   "x": 96,
+   "y": 56,
+   "w": 39,
+   "h": 15,
+   "px": 170
+  },
+  {
+   "role": "hud",
+   "x": 80,
+   "y": 73,
+   "w": 12,
+   "h": 6,
+   "px": 33
+  },
+  {
+   "role": "hud",
+   "x": 96,
+   "y": 80,
+   "w": 6,
+   "h": 7,
+   "px": 16
+  },
+  {
+   "role": "hud",
+   "x": 104,
+   "y": 80,
+   "w": 6,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "hud",
+   "x": 120,
+   "y": 80,
+   "w": 14,
+   "h": 7,
+   "px": 49
+  },
+  {
+   "role": "menu",
+   "x": 48,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 23
+  },
+  {
+   "role": "menu",
+   "x": 56,
+   "y": 112,
+   "w": 37,
+   "h": 7,
+   "px": 131
+  },
+  {
+   "role": "menu",
+   "x": 104,
+   "y": 112,
+   "w": 30,
+   "h": 7,
+   "px": 96
+  },
+  {
+   "role": "menu",
+   "x": 57,
+   "y": 128,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "menu",
+   "x": 64,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "menu",
+   "x": 72,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 22
+  },
+  {
+   "role": "menu",
+   "x": 80,
+   "y": 128,
+   "w": 7,
+   "h": 7,
+   "px": 34
+  },
+  {
+   "role": "menu",
+   "x": 104,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 19
+  },
+  {
+   "role": "menu",
+   "x": 112,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "menu",
+   "x": 120,
+   "y": 128,
+   "w": 13,
+   "h": 7,
+   "px": 45
+  },
+  {
+   "role": "menu",
+   "x": 136,
+   "y": 128,
+   "w": 13,
+   "h": 7,
+   "px": 47
+  }
+ ]
+}

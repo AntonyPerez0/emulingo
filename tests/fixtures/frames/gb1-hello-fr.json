@@ -1,0 +1,119 @@
+{
+ "id": "gb1-hello-fr",
+ "platform": "gb",
+ "lang": "fr",
+ "frameKind": "overworld-dialog",
+ "partial": false,
+ "palette": "gbc-blue",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "Bonjour! Bienvenue",
+    "dans le monde des"
+   ],
+   "text": "Bonjour! Bienvenue dans le monde des"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 112,
+   "w": 29,
+   "h": 8,
+   "px": 81
+  },
+  {
+   "role": "dialog",
+   "x": 66,
+   "y": 112,
+   "w": 2,
+   "h": 7,
+   "px": 11
+  },
+  {
+   "role": "dialog",
+   "x": 80,
+   "y": 112,
+   "w": 6,
+   "h": 7,
+   "px": 28
+  },
+  {
+   "role": "dialog",
+   "x": 89,
+   "y": 112,
+   "w": 3,
+   "h": 7,
+   "px": 13
+  },
+  {
+   "role": "dialog",
+   "x": 40,
+   "y": 114,
+   "w": 22,
+   "h": 5,
+   "px": 55
+  },
+  {
+   "role": "dialog",
+   "x": 96,
+   "y": 114,
+   "w": 54,
+   "h": 5,
+   "px": 134
+  },
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 128,
+   "w": 29,
+   "h": 7,
+   "px": 77
+  },
+  {
+   "role": "dialog",
+   "x": 49,
+   "y": 128,
+   "w": 4,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "dialog",
+   "x": 72,
+   "y": 128,
+   "w": 38,
+   "h": 7,
+   "px": 108
+  },
+  {
+   "role": "dialog",
+   "x": 120,
+   "y": 128,
+   "w": 21,
+   "h": 7,
+   "px": 57
+  },
+  {
+   "role": "dialog",
+   "x": 56,
+   "y": 130,
+   "w": 6,
+   "h": 5,
+   "px": 18
+  },
+  {
+   "role": "dialog",
+   "x": 144,
+   "y": 130,
+   "w": 7,
+   "h": 4,
+   "px": 16
+  }
+ ]
+}

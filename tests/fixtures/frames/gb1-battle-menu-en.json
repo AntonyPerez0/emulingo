@@ -1,0 +1,202 @@
+{
+ "id": "gb1-battle-menu-en",
+ "platform": "gb",
+ "lang": "en",
+ "frameKind": "battle-menu",
+ "partial": false,
+ "palette": "dmg-green",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "hud",
+   "lines": [
+    "PIDGEY",
+    ":L3",
+    "HP:"
+   ],
+   "text": "PIDGEY :L3 HP:"
+  },
+  {
+   "kind": "hud",
+   "lines": [
+    "BULBASAUR",
+    ":L5",
+    "HP:",
+    "19/ 20"
+   ],
+   "text": "BULBASAUR :L5 HP: 19/ 20"
+  },
+  {
+   "kind": "menu",
+   "lines": [
+    "FIGHT PkMn",
+    "ITEM RUN"
+   ],
+   "text": "FIGHT PkMn ITEM RUN"
+  }
+ ],
+ "text": [
+  {
+   "role": "hud",
+   "x": 8,
+   "y": 0,
+   "w": 6,
+   "h": 7,
+   "px": 22
+  },
+  {
+   "role": "hud",
+   "x": 17,
+   "y": 0,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "hud",
+   "x": 24,
+   "y": 0,
+   "w": 21,
+   "h": 7,
+   "px": 76
+  },
+  {
+   "role": "hud",
+   "x": 40,
+   "y": 0,
+   "w": 14,
+   "h": 15,
+   "px": 57
+  },
+  {
+   "role": "hud",
+   "x": 16,
+   "y": 17,
+   "w": 12,
+   "h": 6,
+   "px": 33
+  },
+  {
+   "role": "hud",
+   "x": 80,
+   "y": 56,
+   "w": 21,
+   "h": 7,
+   "px": 72
+  },
+  {
+   "role": "hud",
+   "x": 104,
+   "y": 56,
+   "w": 46,
+   "h": 15,
+   "px": 202
+  },
+  {
+   "role": "hud",
+   "x": 80,
+   "y": 73,
+   "w": 12,
+   "h": 14,
+   "px": 49
+  },
+  {
+   "role": "hud",
+   "x": 96,
+   "y": 80,
+   "w": 14,
+   "h": 7,
+   "px": 33
+  },
+  {
+   "role": "hud",
+   "x": 120,
+   "y": 80,
+   "w": 14,
+   "h": 7,
+   "px": 49
+  },
+  {
+   "role": "menu",
+   "x": 72,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 23
+  },
+  {
+   "role": "menu",
+   "x": 80,
+   "y": 112,
+   "w": 5,
+   "h": 7,
+   "px": 19
+  },
+  {
+   "role": "menu",
+   "x": 89,
+   "y": 112,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 112,
+   "w": 21,
+   "h": 7,
+   "px": 73
+  },
+  {
+   "role": "menu",
+   "x": 128,
+   "y": 112,
+   "w": 16,
+   "h": 8,
+   "px": 57
+  },
+  {
+   "role": "menu",
+   "x": 81,
+   "y": 128,
+   "w": 4,
+   "h": 7,
+   "px": 18
+  },
+  {
+   "role": "menu",
+   "x": 88,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 17
+  },
+  {
+   "role": "menu",
+   "x": 96,
+   "y": 128,
+   "w": 5,
+   "h": 7,
+   "px": 22
+  },
+  {
+   "role": "menu",
+   "x": 104,
+   "y": 128,
+   "w": 7,
+   "h": 7,
+   "px": 34
+  },
+  {
+   "role": "menu",
+   "x": 128,
+   "y": 128,
+   "w": 23,
+   "h": 7,
+   "px": 91
+  }
+ ]
+}

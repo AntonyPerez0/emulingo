@@ -1,0 +1,38 @@
+{
+ "id": "gb1-oak-world-de",
+ "platform": "gb",
+ "lang": "de",
+ "frameKind": "overworld-dialog",
+ "partial": false,
+ "palette": "gbc-blue",
+ "font": "gb-bold",
+ "nativeW": 160,
+ "nativeH": 144,
+ "regions": [
+  {
+   "kind": "dialog",
+   "lines": [
+    "POKéMON!"
+   ],
+   "text": "POKéMON!"
+  }
+ ],
+ "text": [
+  {
+   "role": "dialog",
+   "x": 8,
+   "y": 112,
+   "w": 55,
+   "h": 7,
+   "px": 190
+  },
+  {
+   "role": "dialog",
+   "x": 66,
+   "y": 112,
+   "w": 2,
+   "h": 7,
+   "px": 11
+  }
+ ]
+}

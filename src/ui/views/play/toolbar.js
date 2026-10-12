@@ -2,7 +2,9 @@
 // Text area · Auto-translate · Mute · Fullscreen · More (Restart…, Eject,
 // Game controls…, Return to game, Keyboard shortcuts). Secondary controls
 // are icon buttons with tooltips (their label stays the accessible name);
-// when the toolbar is narrow the less used ones move into More. Every
+// when the toolbar is narrow the less used ones move into More. On a phone
+// held sideways (corners mode) only Translate now, Pause, Auto-translate
+// and More stay, in the two bottom corners of the game screen. Every
 // control but More (and its Eject and Keyboard shortcuts) is disabled
 // (aria-disabled, still focusable) until the game has started.
 import { html, render } from '../../dom.js';
@@ -52,7 +54,7 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
       ${tb({ action: 'quick-load', label: 'Quick load', iconName: 'folder-open' })}
     </div>
     ${SEP}
-    <div class="tb-group">
+    <div class="tb-group tb-group--end">
       ${tb({ action: 'zone', label: 'Text area', iconName: 'crop', attrs: { 'aria-expanded': 'false', 'aria-controls': zoneEditorId || null } })}
       ${tb({ action: 'auto-translate', label: 'Auto-translate', iconName: 'eye', kind: 'tb--labelled', attrs: { 'aria-pressed': 'true', 'aria-keyshortcuts': 'p', 'data-keyshortcut': 'p' } })}
     </div>
@@ -68,6 +70,7 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
           { action: 'quick-load', label: 'Quick load', icon: 'folder-open', id: 'play-more-quick-load' },
           { action: 'mute', label: 'Mute', icon: 'volume-2', id: 'play-more-mute' },
           { action: 'fullscreen', label: 'Fullscreen', icon: 'maximize', id: 'play-more-fullscreen' },
+          { action: 'zone', label: 'Text area', icon: 'crop', id: 'play-more-zone' },
           { action: 'restart', label: 'Restart…', icon: 'rotate-ccw' },
           { action: 'eject', label: 'Eject game', icon: 'eject' },
           'separator',
@@ -82,13 +85,17 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
   const item = (action) => el.querySelector(`#play-more-${action}`);
   // The toolbar is as wide as the game. Until everything fits on one row,
   // these steps apply in turn: the audio and fullscreen pair moves into
-  // More, Auto-translate drops its label, then the save slots move too.
-  // `hidden`, not CSS, so the menu's keyboard navigation skips the copies
-  // that aren't in use.
+  // More, Auto-translate drops its label, the save slots move too, then
+  // Text area, and last Translate now drops its icon, then its visible
+  // label (the label stays its name). `hidden`, not CSS, so the menu's
+  // keyboard navigation skips the copies that aren't in use.
   const TIERS = [
     { actions: ['mute', 'fullscreen'] },
-    { compact: true },
-    { actions: ['quick-save', 'quick-load'] }
+    { cls: 'play-toolbar--compact' },
+    { actions: ['quick-save', 'quick-load'] },
+    { actions: ['zone'] },
+    { cls: 'play-toolbar--no-main-icon' },
+    { cls: 'play-toolbar--icons' }
   ];
 
   // until there is a width to go by, the controls stay in the toolbar
@@ -100,7 +107,7 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
   function applyTiers(level) {
     TIERS.forEach((tier, i) => {
       const on = i < level;
-      if (tier.compact) el.classList.toggle('play-toolbar--compact', on);
+      if (tier.cls) el.classList.toggle(tier.cls, on);
       for (const a of tier.actions || []) {
         const b = btn(a);
         const m = item(a);
@@ -123,7 +130,9 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
   // while everything still fits, narrower adds them until it does.
   let level = 0;
   let lastWidth = 0;
+  let corners = false;
   function layout() {
+    if (corners) return; // every step applies there, whatever the width
     const width = el.clientWidth;
     if (!width) return; // hidden: keep the last layout
     if (width > lastWidth) {
@@ -220,6 +229,28 @@ export function createToolbar(el, { onAction = () => {}, zoneEditorId = '' } = {
       if (l) l.textContent = label;
       if (b.hasAttribute('aria-label')) b.setAttribute('aria-label', label);
       if (b.hasAttribute('data-tooltip')) b.setAttribute('data-tooltip', label);
+      const m = item('zone');
+      const span = m && m.querySelector('span');
+      if (span) span.textContent = label;
+    },
+    // Phone held sideways: four buttons in the bottom corners of the game
+    // screen (Translate now and Pause left, Auto-translate and More right),
+    // the rest in More. Nothing is measured, so every phone gets the same.
+    setCorners(on) {
+      on = !!on;
+      if (on === corners) return;
+      corners = on;
+      el.classList.toggle('play-toolbar--corners', on);
+      if (on) {
+        level = TIERS.length;
+        applyTiers(level);
+      } else {
+        // back to a full row, then the steps come back as needed
+        level = 0;
+        applyTiers(0);
+        lastWidth = 0;
+        layout();
+      }
     },
     setSavedAt(ts) {
       savedAt = ts || null;

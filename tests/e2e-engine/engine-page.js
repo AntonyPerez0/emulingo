@@ -50,6 +50,9 @@ function rowStrips(img, box, k) {
 }
 
 async function measured(fn) {
+  // start in a fresh task: rendering the test frame just before (~60 ms of
+  // canvas work) must not count as a long task of the read
+  await new Promise((r) => setTimeout(r, 0));
   const t0 = performance.now();
   const value = await fn();
   const t1 = performance.now();

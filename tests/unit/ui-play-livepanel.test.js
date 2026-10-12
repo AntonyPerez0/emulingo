@@ -357,6 +357,51 @@ describe('live panel', () => {
     expect(text.match(/looks French/g)).toHaveLength(1);
   });
 
+  it('knows the newest live line while one is held back or history is on show', () => {
+    panel.showLive(capture(), { isNew: true });
+    section.querySelector('button.word').focus();
+    const next = capture({ id: 'cap-2', dialog: { text: 'Neu', translation: '', status: 'pending' } });
+    panel.showLive(next, { isNew: true });
+    expect(section.querySelector('[data-action="show-queued"]')).not.toBe(null);
+    expect(panel.latest()).toBe(next);
+    // its translation lands while it waits
+    const done = { ...next, dialog: { ...next.dialog, translation: 'New', status: 'done' } };
+    panel.showLive(done);
+    expect(panel.latest()).toBe(done);
+    panel.showHistory(capture({ id: 'old', dialog: { text: 'Alt', translation: 'Old', status: 'done' } }));
+    const third = capture({ id: 'cap-3', dialog: { text: 'Drei', translation: '', status: 'pending' } });
+    panel.showLive(third, { isNew: true });
+    expect(panel.current().id).toBe('old');
+    expect(panel.latest()).toBe(third);
+  });
+
+  it('shows the newest live line on request: back from history, or the line held back', () => {
+    panel.showLive(capture(), { isNew: true });
+    section.querySelector('button.word').focus();
+    const next = capture({ id: 'cap-2', dialog: { text: 'Neu', translation: 'New', status: 'done' } });
+    panel.showLive(next, { isNew: true });
+    expect(panel.current().id).toBe('cap-1');
+    panel.showLatest();
+    expect(panel.current().id).toBe('cap-2');
+    expect(section.querySelector('[data-action="show-queued"]')).toBe(null);
+    panel.showHistory(capture({ id: 'old', dialog: { text: 'Alt', translation: 'Old', status: 'done' } }));
+    expect(panel.mode()).toBe('history');
+    panel.showLatest();
+    expect(panel.mode()).toBe('live');
+    expect(panel.current().id).toBe('cap-2');
+    // already on the newest line: nothing changes
+    panel.showLatest();
+    expect(panel.current().id).toBe('cap-2');
+  });
+
+  it('focuses the line on show, else the heading', () => {
+    panel.focusCurrent();
+    expect(document.activeElement.id).toBe('play-live-title');
+    panel.showLive(capture(), { isNew: true });
+    panel.focusCurrent();
+    expect(document.activeElement.classList.contains('capture')).toBe(true);
+  });
+
   it('escapes game text (no markup injection)', () => {
     panel.showLive(capture({ dialog: { text: '<img src=x onerror=alert(1)> Hallo', translation: '<b>x</b>', status: 'done' } }), { isNew: true });
     expect(section.querySelector('img')).toBe(null);

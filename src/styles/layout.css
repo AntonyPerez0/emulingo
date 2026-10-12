@@ -466,6 +466,91 @@ main > section[data-view] {
   .app-nav__icon { height: 32px; }
 }
 
+/* Phones playing with the on-screen pad (html[data-handheld], set by the
+   Play view). Sideways the game is one screen: the header (with the tab bar
+   on narrow phones, icons only, labels stay as names) scrolls away above
+   it, one swipe up, and the page snaps to the header, the game and the
+   translation. Upright on short phones the header scrolls away too. */
+/* (No tab bar or sticky header covers the full-screen game, so nothing is
+   kept clear: a focused control in its bottom corners stays where it is,
+   instead of scrolling the game off its snap point.) */
+:root[data-handheld='landscape'] {
+  --bottom-nav-h: 0px;
+  scroll-padding-top: 0;
+  scroll-padding-bottom: 0;
+  scroll-snap-type: y proximity;
+}
+
+/* (body re-declares --bottom-nav-h while playing) */
+:root[data-handheld='landscape'] body {
+  --bottom-nav-h: 0px;
+}
+
+/* Toasts sit at the top centre, over the top of the picture, clear of the
+   pad's bars and of the toolbar in the bottom corners. */
+:root[data-handheld='landscape'] .toast-region {
+  top: calc(var(--safe-top) + var(--space-2));
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: min(400px, calc(100vw - 2 * (160px + max(var(--safe-left), var(--safe-right)))));
+  max-width: none;
+  margin-inline: auto;
+}
+
+:root[data-handheld='landscape'] .app-header {
+  position: static;
+  scroll-snap-align: start;
+}
+
+@media (max-width: 767.98px) {
+  :root[data-handheld='landscape'] .app-nav {
+    position: static;
+    inset: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  :root[data-handheld='landscape'] .app-nav__list {
+    display: flex;
+    height: auto;
+  }
+
+  :root[data-handheld='landscape'] .app-nav__link {
+    width: 48px;
+    min-height: 44px;
+  }
+
+  :root[data-handheld='landscape'] .app-nav__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-height: 719.98px) {
+  :root[data-handheld='portrait'] {
+    scroll-padding-top: 0;
+    scroll-snap-type: y proximity;
+  }
+
+  :root[data-handheld='portrait'] .app-header {
+    position: static;
+    scroll-snap-align: start;
+  }
+}
+
+/* While the player reads the translation (focus in the cards or a word's
+   look-up, html.play-reading from the Play view), the page doesn't snap:
+   a control scrolled into view near the game must stay in view. */
+:root[data-handheld].play-reading {
+  scroll-snap-type: none;
+}
+
 /* Desktop: label and badge sit inline */
 @media (min-width: 768px) {
   .nav-badge {

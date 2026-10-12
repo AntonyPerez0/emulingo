@@ -1,7 +1,7 @@
 // Pure helpers for the Play view (no DOM, unit-tested): word tokens for the
 // look-up buttons, roving-tabindex moves, capture diffing for in-place
-// updates, sentence tracking for auto-flashcards, the key hint and the
-// status-chip wording.
+// updates, sentence tracking for auto-flashcards, the key hint, the
+// status-chip wording, and the phone layouts (mode, caption, pad metrics).
 import { segmentWords } from '../../../core/utils.js';
 import { splitSentences, isCompleteSentence, normalizeForCompare } from '../../../core/ocr/dialog.js';
 
@@ -256,6 +256,74 @@ export function statusView(status) {
   // The chip already says watching/reading/translating; repeat only messages that add something.
   const showMessage = state === 'paused' || state === 'error' || state === 'setup';
   return { state, label, message: showMessage ? String(s.message || '') : '', detail: s.detail ? String(s.detail) : '', progress };
+}
+
+// ---- Phone layouts ----------------------------------------------------------------
+
+/**
+ * Which phone layout applies: 'portrait' (picture, caption strip and pad
+ * stacked), 'landscape' (a full-screen game with the pad in the side bars),
+ * or null for the regular layout. Only while a game runs with EmulatorJS's
+ * on-screen pad showing and the text-area editor closed. N64 (a stick and C
+ * buttons) keeps the regular layout.
+ */
+export function handheldMode({ visible, phase, docked, zoneOpen, system, landscape, portrait } = {}) {
+  if (!visible || phase !== 'running' || !docked || zoneOpen) return null;
+  if (system === 'n64') return null;
+  if (landscape) return 'landscape';
+  if (portrait) return 'portrait';
+  return null;
+}
+
+const CAPTION_OTHERS = 3;
+// a dialog reads as one run of text, a menu's lines as a list
+const flat = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+const oneLine = (s) => String(s || '').trim().replace(/\s*\n+\s*/g, ' · ');
+
+/**
+ * The caption under the picture (the subtitle of the newest live capture):
+ * { state: 'done' | 'pending' | 'error' | 'empty', text, lang }. `lang` is the
+ * translation's language, set only when the text is a translation.
+ */
+export function captionView(capture, { status = null, phase = 'running' } = {}) {
+  if (capture && phase === 'running') {
+    const d = capture.dialog && capture.dialog.text ? capture.dialog : null;
+    if (d && flat(d.translation)) return { state: 'done', text: flat(d.translation), lang: capture.tgt || null };
+    const others = (capture.others || []).filter((o) => o && o.text);
+    if (!d) {
+      const done = others.filter((o) => String(o.translation || '').trim()).slice(0, CAPTION_OTHERS);
+      if (done.length) return { state: 'done', text: done.map((o) => oneLine(o.translation)).join(' · '), lang: capture.tgt || null };
+    }
+    const parts = d ? [d] : others;
+    if (parts.length) {
+      const waiting = parts.some((p) => p.status === 'pending' || p.status === 'translating');
+      return waiting
+        ? { state: 'pending', text: 'Translating…', lang: null }
+        : { state: 'error', text: 'Couldn’t translate this line.', lang: null };
+    }
+  }
+  const v = statusView(status);
+  if (phase === 'running' && v.state === 'setup') return { state: 'empty', text: 'Getting text recognition ready…', lang: null };
+  if (phase === 'running' && v.state === 'paused') return { state: 'empty', text: v.message || 'Auto-translate is off. Use Translate now to read the screen.', lang: null };
+  if (phase === 'running' && v.state === 'error') return { state: 'empty', text: v.message || 'Live translation isn’t available right now.', lang: null };
+  return { state: 'empty', text: 'Translations of the game’s text appear here.', lang: null };
+}
+
+/**
+ * Width and offset of a pad cluster (EmulatorJS's D-pad zone or A/B zone)
+ * from its zone's box and the boxes of the keys in it: { width, shift } in
+ * px, where shift is the keys' centre minus the zone's centre (Game Boy's
+ * A and B sit right of an empty strip in their zone, Mega Drive's six
+ * buttons reach far to the left of it). The zone itself when it has no keys.
+ */
+export function padClusterMetrics(zone, rects = []) {
+  const left = (r) => (typeof r.left === 'number' ? r.left : r.x);
+  const right = (r) => (typeof r.right === 'number' ? r.right : r.x + r.width);
+  if (!zone) return null;
+  const keys = (rects || []).filter(Boolean);
+  const lo = keys.length ? Math.min(...keys.map(left)) : left(zone);
+  const hi = keys.length ? Math.max(...keys.map(right)) : right(zone);
+  return { width: Math.ceil(hi - lo), shift: Math.round((lo + hi) / 2 - (left(zone) + right(zone)) / 2) };
 }
 
 // ---- Formatting -------------------------------------------------------------------

@@ -412,6 +412,19 @@ export function createLivePanel(section, opts = {}) {
     if (!quiet) announce('Back to the live translation.');
   }
 
+  // The newest live line on show, whatever the reader was looking at (the
+  // caption's "Open Live translation" opens the line the caption shows):
+  // back from an earlier line, or the line held back while they read.
+  function showLatest() {
+    if (mode === 'history') {
+      backToLive({ focus: false, quiet: true });
+    } else if (queued) {
+      const c = queued;
+      queued = null;
+      renderCapture(c);
+    }
+  }
+
   function flushQueued() {
     if (!queued || frozen() || mode !== 'live') return;
     const c = queued;
@@ -561,6 +574,10 @@ export function createLivePanel(section, opts = {}) {
       $('[data-added-text]').textContent = n ? `${formatCount(n, 'sentence')} added to your deck` : '';
     },
     current: () => shown,
+    // the newest capture from the scanner, whatever is on show (the caption follows it)
+    latest: () => latestLive,
+    showLatest,
+    focusCurrent: focusContent,
     mode: () => mode,
     added: () => addedCount,
     isFrozen: frozen

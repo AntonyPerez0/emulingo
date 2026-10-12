@@ -3,6 +3,11 @@
 // and the text-area editor. This module owns the game session (one per
 // page: EmulatorJS can't be torn down, so switching games reloads) and
 // wires the parts together; each part lives in its own module.
+//
+// Phones: while EmulatorJS shows its on-screen pad, html[data-handheld]
+// switches the stage to a phone layout (play.css): upright, the picture,
+// a translation caption and the pad are stacked; sideways, the game fills
+// the screen with the pad in the side bars and the toolbar in the corners.
 import '../../../styles/views/play.css';
 import { html, render } from '../../dom.js';
 import { icon } from '../../icons.js';
@@ -27,12 +32,24 @@ import { createWordPopover } from './wordpop.js';
 import { createRecentLines } from './history.js';
 import { createZoneEditor, isZone, clampZone } from './zone.js';
 import { createOcrSession } from './session.js';
-import { keyHintText, clockTime } from './model.js';
+import { createCaption } from './caption.js';
+import { keyHintText, clockTime, handheldMode, padClusterMetrics } from './model.js';
 
 // Toolbar actions after which a mouse user wants to keep playing with the
 // keyboard: focus goes back to the game (event.detail > 0 = pointer click).
 const REFOCUS_AFTER = new Set(['translate-now', 'pause', 'quick-save', 'quick-load', 'auto-translate', 'mute', 'fullscreen', 'restart']);
 const DEBUG = typeof location !== 'undefined' && /[?&]debug=1\b/.test(location.search);
+
+// The phone layouts follow these (jsdom and old browsers have no matchMedia).
+const mq = (q) => (typeof matchMedia === 'function'
+  ? matchMedia(q)
+  : { matches: false, addEventListener() {}, removeEventListener() {} });
+// (sideways from 560 x 240 up: smaller is a zoomed page, whose regular
+// layout reflows; two pad bars beside the picture would not fit it)
+const LANDSCAPE_MQ = mq('(orientation: landscape) and (min-width: 560px) and (min-height: 240px) and (max-height: 500px)');
+const PORTRAIT_MQ = mq('(orientation: portrait) and (max-width: 959.98px)');
+// (short phones upright: the header scrolls away and the page snaps to the game)
+const SHORT_MQ = mq('(orientation: portrait) and (max-height: 719.98px)');
 
 const ui = {};
 const game = { rom: null, phase: 'idle', zone: null };
@@ -64,6 +81,7 @@ function skeleton() {
             <div id="game"></div>
             <div class="stage__overlay" data-stage-overlay hidden></div>
             <div class="zone-overlay" data-zone-overlay hidden></div>
+            <div class="caption" data-caption data-state="empty"></div>
           </div>
           <div class="play-controls" data-controls>
             <div class="resume" data-resume hidden></div>
@@ -107,6 +125,8 @@ function setPhase(phase) {
   game.phase = phase;
   ui.page.dataset.phase = phase;
   syncPlayingFlag();
+  ui.caption.setPhase(phase);
+  syncHandheld();
 }
 
 function syncPlayingFlag() {
@@ -184,8 +204,8 @@ async function startGame(record, bytes) {
   try {
     ocr = createOcrSession({
       onStatus: onScannerStatus,
-      onCapture: (c) => { ui.live.showLive(c, { isNew: true }); ui.recent.refresh(); },
-      onUpdate: (c) => { ui.live.showLive(c); ui.recent.refresh(); },
+      onCapture: (c) => { showLive(c, { isNew: true }); ui.recent.refresh(); },
+      onUpdate: (c) => { showLive(c); ui.recent.refresh(); },
       onCardsAdded: (n) => ui.live.setAdded(n)
     });
     ocr.pause('loading');
@@ -195,7 +215,9 @@ async function startGame(record, bytes) {
   } catch (err) {
     console.error('[play] live translation unavailable', err);
     ocr = null;
-    ui.live.setStatus({ state: 'error', message: 'Live translation isn’t available in this browser.', detail: String((err && err.message) || err) });
+    const status = { state: 'error', message: 'Live translation isn’t available in this browser.', detail: String((err && err.message) || err) };
+    ui.live.setStatus(status);
+    ui.caption.setStatus(status);
   }
   loadZone(record.id);
 
@@ -280,12 +302,191 @@ async function onStarted(record, system) {
 }
 
 // On touch devices EmulatorJS draws its on-screen pad over the bottom of the
-// game, where most games show their text: the stage docks it underneath.
+// game, where most games show their text: the stage docks it underneath
+// (and on phones, html[data-handheld] moves it around the picture).
 function syncTouchDock() {
   const pad = document.querySelector('#game .ejs_virtualGamepad_parent');
   const on = !!pad && pad.style.display !== 'none' && pad.style.opacity !== '0';
   ui.stage.setTouchDock(on);
+  // (only while it is laid out: a hidden view keeps the last measurements)
+  const metrics = on && visible ? measurePad(pad) : null;
+  if (metrics) ui.stage.setPadMetrics(metrics);
   if (visible) emu.handleResize();
+  syncHandheld();
+}
+
+// The D-pad and A/B clusters as laid out by EmulatorJS (L/R aside: they get
+// their own place), so a wide cluster keeps to its side bar. Null while the
+// pad has no box to measure.
+function measurePad(pad) {
+  if (!pad.getBoundingClientRect().width) return null;
+  const side = (cls, exclude) => {
+    const zone = pad.querySelector(`.${cls}`);
+    if (!zone) return null;
+    const z = zone.getBoundingClientRect();
+    if (!z.width) return null;
+    const items = Array.from(zone.querySelectorAll('*'))
+      .filter((el) => !el.closest(exclude))
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width && r.height);
+    return padClusterMetrics(z, items);
+  };
+  return {
+    left: side('ejs_virtualGamepad_left', '.b_l'),
+    right: side('ejs_virtualGamepad_right', '.b_r'),
+    shoulders: !!pad.querySelector('.ejs_virtualGamepad_left > .b_l, .ejs_virtualGamepad_right > .b_r')
+  };
+}
+
+// ---- phone layouts -----------------------------------------------------------------
+
+const systemCore = () => {
+  if (!game.rom) return null;
+  const sys = rom.systemFor(rom.resolveCore(game.rom, store.get('core')));
+  return sys ? sys.core : null;
+};
+
+const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+
+// The player is reading the translation: focus in the cards, or in a word's
+// look-up opened from them.
+const inReading = (el) => !!el && el.nodeType === 1 && (ui.side.contains(el) || ui.popoverHost.contains(el));
+const reading = () => inReading(document.activeElement);
+
+// html[data-handheld] is the one switch for the phone layouts (play.css,
+// layout.css); the dark island and the toolbar's corners go with it (the
+// island also upright in fullscreen, where the game section is on black).
+let settling = null; // the mode before a change that is laid out in the next frame
+function syncHandheld({ scroll = false } = {}) {
+  if (!ui.stage) return;
+  const root = document.documentElement;
+  const prev = root.dataset.handheld || null;
+  const mode = handheldMode({
+    visible,
+    phase: game.phase,
+    docked: ui.stage.docked(),
+    zoneOpen: !!(ui.zone && ui.zone.isOpen()),
+    system: systemCore(),
+    landscape: LANDSCAPE_MQ.matches,
+    portrait: PORTRAIT_MQ.matches
+  });
+  if (mode) root.dataset.handheld = mode;
+  else delete root.dataset.handheld;
+  ui.gameSection.classList.toggle('theme-dark', mode === 'landscape' || (!!mode && fullscreenElement() === ui.gameSection));
+  ui.toolbar.setCorners(mode === 'landscape');
+  if (mode === prev && !scroll) return;
+  // one frame per change, however many media queries a rotation fires
+  if (settling) return;
+  settling = { from: prev };
+  requestAnimationFrame(() => {
+    const { from } = settling;
+    settling = null;
+    const now = root.dataset.handheld || null;
+    // EmulatorJS's small/big screen classes; the canvas follows its new CSS size
+    if (visible && game.rom) emu.handleResize();
+    if (reading()) {
+      // a rotation while reading the translation: the reader keeps their place
+      if (from !== now && document.activeElement && document.activeElement.scrollIntoView) {
+        document.activeElement.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      }
+      return;
+    }
+    // sideways the page was scrolled down to the game: start upright at the top
+    if (from === 'landscape' && now !== 'landscape' && ui.gameSection.getBoundingClientRect().top < 0) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    bringGameIntoView();
+  });
+}
+
+// (no smooth scrolling: the layout has just changed under the player)
+function scrollToStart(el) {
+  if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'start', behavior: 'instant' });
+}
+
+// Sideways, and upright on short phones, the game is one screen: put it in
+// view on entering the layout, on rotation and on the way back to the game
+// (`force`: the player asked for it, from wherever they were reading).
+// Never while the player reads the translation otherwise, and never on
+// other resizes (the URL bar coming and going) or new lines. Upright, a
+// page scrolled down to the cards stays there (the URL bar coming back can
+// flip a phone between short and tall): only a game at least half on
+// screen is put in place.
+function bringGameIntoView({ force = false } = {}) {
+  const mode = document.documentElement.dataset.handheld;
+  if (!mode) return;
+  if (!force && reading()) return;
+  if (mode === 'landscape') {
+    scrollToStart(ui.gameSection);
+    return;
+  }
+  const top = ui.gameSection.getBoundingClientRect().top;
+  const near = force || top > -ui.gameSection.offsetHeight / 2;
+  if (SHORT_MQ.matches) {
+    if (near) scrollToStart(ui.gameSection);
+    return;
+  }
+  // Taller upright, the header is sticky and the game sits right under it at
+  // the top of the page (8 px below it on phones). A page scrolled for a
+  // short screen (the URL bar hid, the screen grew) or for the text-area
+  // editor would leave the game's top at or under the header.
+  const header = document.querySelector('.app-header');
+  const below = header ? header.getBoundingClientRect().bottom : 0;
+  if (top < below + 8 && near) scrollToStart(ui.gameSection);
+}
+
+// The caption's button: the full Live translation card, on the line the
+// caption shows (back from an earlier line, or a line held back while the
+// card was being read), focused. Out of fullscreen first, or the card isn't
+// there to see.
+async function openLive() {
+  if (emu.isFullscreen()) {
+    ui.toolbar.setFullscreen(await emu.toggleFullscreen());
+    // EmulatorJS hands focus back to the game just after fullscreen ends
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  ui.live.showLatest();
+  requestAnimationFrame(() => {
+    scrollToStart(ui.page.querySelector('[data-live]'));
+    ui.live.focusCurrent();
+  });
+}
+
+function returnToGame() {
+  bringGameIntoView({ force: true });
+  emu.focusGame();
+}
+
+// Every live capture goes to the card and to the caption, which always
+// shows the newest one (the card may hold a line back, or show history). A
+// new capture (or Translate now) is a fresh read of the screen.
+function showLive(c, opts = {}) {
+  ui.live.showLive(c, opts);
+  ui.caption.show(ui.live.latest(), { fresh: !!opts.isNew });
+}
+
+// Plain resizes (the URL bar) never scroll; sideways, a new width (split
+// screen, a foldable) lays the game screen out anew: put it back in place.
+let resizeFrame = 0;
+let lastWidth = typeof innerWidth === 'number' ? innerWidth : 0;
+function onWindowResize() {
+  if (resizeFrame) return;
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0;
+    const widthChanged = innerWidth !== lastWidth;
+    lastWidth = innerWidth;
+    syncHandheld();
+    if (widthChanged && document.documentElement.dataset.handheld === 'landscape') bringGameIntoView();
+  });
+}
+
+// (one rotation changes several queries: one re-measure for all of them)
+let padTimer = 0;
+function onOrientation() {
+  syncHandheld({ scroll: true });
+  // re-measure once EmulatorJS's 250 ms pad flash is over
+  clearTimeout(padTimer);
+  if (game.phase === 'running') padTimer = setTimeout(syncTouchDock, 300);
 }
 
 // ---- "Resume where you left off?" ------------------------------------------------
@@ -340,7 +541,7 @@ async function translateNow() {
     if (snap) {
       if (ui.live.mode() === 'history') ui.live.backToLive({ focus: false });
       // the scanner's current capture is the newest one, whatever was shown
-      ui.live.showLive(snap, { isNew: true, force: true });
+      showLive(snap, { isNew: true, force: true });
     } else {
       // without a game language nothing is read at all: say what to do
       ui.live.flashNotice(store.get('source') ? 'No text found on the screen.' : 'Choose the game’s language first, then try again.');
@@ -479,6 +680,10 @@ function toggleZoneEditor() {
   else ui.zone.open(game.zone);
 }
 
+// On a phone the game section goes fullscreen, so the toolbar comes along
+// (play.css .game:fullscreen); elsewhere the stage, as always.
+const fullscreenTarget = () => (document.documentElement.dataset.handheld ? ui.gameSection : null);
+
 async function onToolbar(action, e) {
   const pointer = isPointer(e);
   // the toolbar marks these aria-disabled until then; this is the backstop
@@ -491,10 +696,10 @@ async function onToolbar(action, e) {
     case 'zone': toggleZoneEditor(); break;
     case 'auto-translate': toggleAutoTranslate(); break;
     case 'mute': ui.toolbar.setMuted(emu.mute(!emu.isMuted())); break;
-    case 'fullscreen': ui.toolbar.setFullscreen(await emu.toggleFullscreen()); break;
+    case 'fullscreen': ui.toolbar.setFullscreen(await emu.toggleFullscreen(fullscreenTarget())); break;
     case 'restart': restartGame(pointer); return;
     case 'eject': switchTo(null); return;
-    case 'return-to-game': emu.focusGame(); return;
+    case 'return-to-game': returnToGame(); return;
     case 'game-controls': openGameControls(); return;
     case 'shortcuts': showShortcutHelp(); return;
     default: return;
@@ -506,6 +711,7 @@ async function onToolbar(action, e) {
 
 function onScannerStatus(s) {
   ui.live.setStatus(s);
+  ui.caption.setStatus(s);
   ui.live.setHint(s.hint || null);
   if (s.state === 'error' && lastStatusState !== 'error') announce(s.message || 'Live translation ran into a problem.');
   if (s.state === 'setup') announcedReady = false;
@@ -614,7 +820,7 @@ function registerShortcuts() {
     scope: 'play',
     handler: () => {
       if (game.phase !== 'running') return false;
-      emu.focusGame();
+      returnToGame();
       return true;
     }
   });
@@ -650,8 +856,11 @@ function onVisibility() {
 }
 
 function onStoreChange(key, value) {
-  if (key === 'ocrPaused') ui.toolbar.setAutoTranslate(!value);
-  else if (key === 'shortcuts') syncShortcutHints();
+  if (key === 'ocrPaused') {
+    ui.toolbar.setAutoTranslate(!value);
+    ui.caption.setAutoTranslate(!value);
+  } else if (key === 'shortcuts') syncShortcutHints();
+  else if (key === 'target') ui.caption.setTarget(value);
 }
 
 // A file dropped anywhere but a drop zone (which accepts it first, with
@@ -694,6 +903,9 @@ function mount(section) {
   ui.controls = $('[data-controls]');
   ui.resume = $('[data-resume]');
   ui.keyHint = $('[data-key-hint]');
+  ui.gameSection = $('section.game');
+  ui.side = $('.play-side');
+  ui.popoverHost = $('[data-popover-host]');
 
   ui.onboarding = createOnboarding($('[data-onboarding]'), {
     // Saving from the card itself removes the button that had focus. (When a
@@ -718,6 +930,7 @@ function mount(section) {
     onChooseAnother: () => switchTo(null)
   });
   ui.toolbar = createToolbar($('[data-toolbar]'), { onAction: onToolbar, zoneEditorId: 'play-zone-editor' });
+  ui.caption = createCaption($('[data-caption]'), { onOpen: openLive, target: store.get('target'), autoTranslate: !store.get('ocrPaused') });
   // iPhone Safari has no element fullscreen: a Fullscreen button there would do nothing
   if (!emu.canFullscreen()) ui.toolbar.remove('fullscreen');
   ui.popover = createWordPopover({
@@ -747,15 +960,18 @@ function mount(section) {
   ui.zone = createZoneEditor({
     overlayEl: $('[data-zone-overlay]'),
     panelEl: $('[data-zone-panel]'),
+    // (the phone layouts are off while editing: the editor uses the regular one)
     onOpen: () => {
       if (ocr) ocr.pause('zone');
       document.body.classList.add('play-zone-editing');
       ui.toolbar.setZone({ open: true, custom: !!game.zone });
+      syncHandheld();
     },
     onClose: () => {
       if (ocr) ocr.resume('zone');
       document.body.classList.remove('play-zone-editing');
       ui.toolbar.setZone({ open: false, custom: !!game.zone });
+      syncHandheld({ scroll: true });
     },
     onSave: saveZone
   });
@@ -763,6 +979,11 @@ function mount(section) {
     const b = e.target.closest('[data-action]');
     if (b) answerResume(b.dataset.action === 'resume-yes');
   });
+
+  // While the player reads the translation the page doesn't snap back to
+  // the game under them (layout.css).
+  section.addEventListener('focusin', (e) => document.documentElement.classList.toggle('play-reading', inReading(e.target)));
+  section.addEventListener('focusout', (e) => { if (!inReading(e.relatedTarget)) document.documentElement.classList.remove('play-reading'); });
 
   // In-page jump without touching the URL: a plain #fragment would add a
   // history entry that the hash router then has to rewrite.
@@ -779,9 +1000,14 @@ function mount(section) {
   document.addEventListener('keydown', onEjsPopupKey, true);
   emu.onEvent(onEmulatorEvent);
   document.addEventListener('visibilitychange', onVisibility);
-  const onFullscreen = () => ui.toolbar.setFullscreen(emu.isFullscreen());
+  const onFullscreen = () => {
+    ui.toolbar.setFullscreen(emu.isFullscreen());
+    syncHandheld();
+  };
   document.addEventListener('fullscreenchange', onFullscreen);
   document.addEventListener('webkitfullscreenchange', onFullscreen);
+  for (const q of [LANDSCAPE_MQ, PORTRAIT_MQ, SHORT_MQ]) q.addEventListener('change', onOrientation);
+  window.addEventListener('resize', onWindowResize);
   document.addEventListener('dragover', onPageDragOver);
   document.addEventListener('drop', onPageDrop);
   tts.onSpeakingChange((on) => ui.live.setSpeaking(on));
@@ -794,7 +1020,7 @@ function mount(section) {
       const el = section.querySelector('[data-debug]');
       if (!el || !ocr) return;
       const st = ocr.scanner.getState();
-      el.textContent = `OCR reads ${st.stats.reads} · cache hits ${st.stats.cacheHits} · last ${Math.round(st.stats.lastReadMs)} ms · ${st.stats.engine || '—'} · ${st.status.state}`;
+      el.textContent = `OCR reads ${st.stats.reads} · cache hits ${st.stats.cacheHits} · screen reads ${st.stats.screenReads || 0} · last ${Math.round(st.stats.lastReadMs)} ms · ${st.stats.engine || '—'} · ${st.status.state}`;
     }, 1000);
   }
 
@@ -807,8 +1033,13 @@ function show() {
   if (game.rom) {
     emu.resume('view');
     if (ocr) ocr.resume('view');
-    // the canvas collapses while the view is hidden (MISS-01)
-    requestAnimationFrame(() => emu.handleResize());
+    // the canvas collapses while the view is hidden (MISS-01); the pad is
+    // measured again now that it is laid out
+    requestAnimationFrame(() => {
+      if (game.phase === 'running') syncTouchDock();
+      else emu.handleResize();
+      syncHandheld({ scroll: true });
+    });
   } else {
     ui.onboarding.sync();
     if (ui.library.isLoaded()) ui.library.refresh();
@@ -819,6 +1050,8 @@ function show() {
 function hide() {
   visible = false;
   syncPlayingFlag();
+  syncHandheld();
+  document.documentElement.classList.remove('play-reading');
   if (ui.popover) ui.popover.close({ returnFocus: false });
   if (ui.zone && ui.zone.isOpen()) ui.zone.close({ cancelled: true });
   if (game.rom) emu.pause('view');

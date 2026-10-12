@@ -233,8 +233,8 @@ const typedAt = (page, before) => page.evaluate((b) => {
 const events = (page, since = 0) => page.evaluate((s) => window.__qa.filter((e) => e.t >= s), since);
 const debugStats = (page) => page.evaluate(() => {
   const t = document.querySelector('[data-debug]')?.textContent || '';
-  const m = /OCR reads (\d+) · cache hits (\d+)/.exec(t);
-  return m ? { reads: Number(m[1]), hits: Number(m[2]), raw: t } : { reads: null, hits: null, raw: t };
+  const m = /OCR reads (\d+) · cache hits (\d+)(?: · screen reads (\d+))?/.exec(t);
+  return m ? { reads: Number(m[1]), hits: Number(m[2]), screen: Number(m[3] || 0), raw: t } : { reads: null, hits: null, screen: null, raw: t };
 });
 
 async function pressA(page) {
@@ -383,8 +383,10 @@ async function main(browser, router, base, romPath) {
   const after = await debugStats(page);
   const hist = await historyList(page);
   const idleEvents = (await events(page, evIdle0)).filter((e) => e.text);
-  measures.main.idle = { readsBefore: before.reads, readsAfter: after.reads, hitsBefore: before.hits, hitsAfter: after.hits, liveChanges: idleEvents.length };
-  check('main: no OCR re-reads during idle (blinking arrow masked)', before.reads != null && after.reads === before.reads, measures.main.idle);
+  measures.main.idle = { readsBefore: before.reads, readsAfter: after.reads, hitsBefore: before.hits, hitsAfter: after.hits, screenBefore: before.screen, screenAfter: after.screen, liveChanges: idleEvents.length };
+  // (the rest of the screen around a dialog box is read once it has been
+  // still 8 s, scanner.js PAGED_QUIET_MS: one whole-screen read, not a re-read)
+  check('main: no OCR re-reads during idle (blinking arrow masked)', before.reads != null && after.reads - after.screen === before.reads - before.screen && after.screen - before.screen <= 1, measures.main.idle);
   check('main: history unchanged during idle', hist.length === histBefore.length, { before: histBefore.length, after: hist.length });
 
   const texts = hist.map((h) => h.dialog || h.others.join(' | '));
@@ -414,17 +416,21 @@ async function main(browser, router, base, romPath) {
   check('main: dictionary has line and word entries', measures.main.dictionary.lines > 0 && measures.main.dictionary.words > 0, measures.main.dictionary);
 
   // "Translate now" (T in the game): time until the button is idle again
-  // with the line on show
+  // with the line on show. Each press starts with the scanner idle: a press
+  // waits for a read already in flight (one engine job at a time), and the
+  // rest of the screen, read after the previous press, takes seconds on a
+  // loaded machine.
   const tnow = [];
+  const idle = () => page.waitForFunction(() => document.querySelector('.live .status-chip')?.dataset.state !== 'reading', null, { timeout: 30000 }).catch(() => {});
   for (let k = 0; k < 3; k++) {
+    await idle();
     await page.focus('#game');
     const t0 = await page.evaluate(() => performance.now());
     await page.keyboard.press('t');
     await page.waitForFunction(() => document.querySelector('[data-action="translate-now"]')?.getAttribute('aria-busy') === 'true', null, { timeout: 3000 }).catch(() => {});
     await page.waitForFunction(() => document.querySelector('[data-action="translate-now"]')?.getAttribute('aria-busy') !== 'true', null, { timeout: 30000 });
     tnow.push(Math.round((await page.evaluate(() => performance.now())) - t0));
-    // (a press right after another waits for its whole-screen read)
-    await sleep(4000);
+    await sleep(1000);
   }
   const shownAfter = (await liveText(page)).text;
   measures.main.translateNowMs = tnow;

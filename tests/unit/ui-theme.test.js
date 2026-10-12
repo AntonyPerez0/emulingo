@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const env = vi.hoisted(() => ({ settings: { theme: 'system' }, listeners: new Set(), mqListeners: new Set(), prefersLight: false }));
@@ -71,5 +74,33 @@ describe('theme', () => {
     env.settings.theme = 'neon';
     expect(applyTheme()).toBe('dark');
     expect(document.documentElement.dataset.themePref).toBe('system');
+  });
+});
+
+// ---- the always-dark island (.theme-dark, play.css) ---------------------------------
+
+const STYLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src/styles');
+const read = (f) => fs.readFileSync(path.join(STYLES, f), 'utf8');
+function block(css, selector) {
+  const start = css.indexOf(`${selector} {`);
+  if (start < 0) return null;
+  const body = css.slice(start + selector.length + 2, css.indexOf('}', start));
+  return new Map([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+}
+
+describe('.theme-dark', () => {
+  const tokens = read('tokens.css');
+  const root = block(tokens, ':root');
+  const light = block(tokens, ":root[data-theme='light']");
+  const dark = block(read('views/play.css'), '.theme-dark');
+
+  it('declares the colours the light theme changes, with the dark values', () => {
+    expect(dark).not.toBe(null);
+    expect([...dark.keys()].sort()).toEqual([...light.keys()].sort());
+    for (const [name, value] of dark) expect([name, value]).toEqual([name, root.get(name)]);
+  });
+
+  it('is colours only (an island must not reset spacing or layout)', () => {
+    for (const name of dark.keys()) expect(name).not.toMatch(/^--(gutter|header-h|space-|bottom-nav-h|safe-|text-(xs|sm|md|lg|xl))/);
   });
 });

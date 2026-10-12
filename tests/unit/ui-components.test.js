@@ -305,6 +305,49 @@ describe('menu', () => {
     expect($('#m5-menu', root).hidden).toBe(true);
   });
 
+  it('keeps the focused item in the tab order (a roving tabindex)', () => {
+    const root = mount(c.menu({ id: 'm7', label: 'More', items }));
+    $('#m7', root).click();
+    const tabbable = () => [...root.querySelectorAll('[role="menuitem"]')].filter((i) => i.tabIndex === 0).map((i) => i.dataset.action);
+    expect(tabbable()).toEqual(['restart']);
+    key(document.activeElement, 'ArrowDown');
+    expect(tabbable()).toEqual(['eject']);
+  });
+
+  it('opens where it fits, else towards the side with more room, scrolling', () => {
+    const root = mount(c.menu({ id: 'm8', label: 'More', items }));
+    const trigger = $('#m8', root);
+    const list = $('#m8-menu', root);
+    const rect = (top, height) => ({ top, bottom: top + height, height, left: 0, right: 220, width: 220, x: 0, y: top });
+    const place = (triggerTop, listHeight) => {
+      trigger.getBoundingClientRect = () => rect(triggerTop, 40);
+      // (as laid out below the button until it is moved up)
+      list.getBoundingClientRect = () => (list.classList.contains('menu__list--up')
+        ? rect(triggerTop - 6 - listHeight, listHeight)
+        : rect(triggerTop + 46, listHeight));
+    };
+    const h = window.innerHeight;
+    // no room below, room above: up
+    place(h - 100, 300);
+    trigger.click();
+    expect(list.classList.contains('menu__list--up')).toBe(true);
+    expect(list.style.maxHeight).toBe('');
+    key(document.activeElement, 'Escape');
+    // room on neither side: the larger one, scrolling within it
+    place(300, h);
+    trigger.click();
+    expect(list.classList.contains('menu__list--up')).toBe(false);
+    expect(list.classList.contains('menu__list--scroll')).toBe(true);
+    expect(list.style.maxHeight).toBe(`${h - 8 - 340 - 6}px`);
+    key(document.activeElement, 'Escape');
+    // fits below: as it was (the old clamp is gone)
+    place(100, 200);
+    trigger.click();
+    expect(list.classList.contains('menu__list--up')).toBe(false);
+    expect(list.classList.contains('menu__list--scroll')).toBe(false);
+    expect(list.style.maxHeight).toBe('');
+  });
+
   it('closes when clicking elsewhere', () => {
     const root = mount(c.menu({ id: 'm3', label: 'More', items }));
     root.insertAdjacentHTML('beforeend', '<button id="other">Other</button>');

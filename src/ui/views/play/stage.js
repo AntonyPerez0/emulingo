@@ -16,8 +16,8 @@ export function aspectOf(value, fallback = 10 / 9) {
 
 /**
  * createStage(stageEl, { onRetry, onChooseAnother }) →
- *   { setAspect(ar), loading({ title }), progress(p), error({ message, detail }),
- *     saving(text), running(), idle(), state() }
+ *   { setAspect(ar), setTouchDock(on), docked(), setPadMetrics(m), loading({ title }),
+ *     progress(p), error({ message, detail }), saving(text), running(), idle(), state() }
  */
 export function createStage(stage, { onRetry = () => {}, onChooseAnother = () => {} } = {}) {
   const overlay = stage.querySelector('[data-stage-overlay]');
@@ -109,13 +109,31 @@ export function createStage(stage, { onRetry = () => {}, onChooseAnother = () =>
   });
 
   return {
+    // (also on the page: the landscape phone layout sizes the picture there)
     setAspect(ar) {
-      stage.style.setProperty('--game-ar', String(aspectOf(ar)));
+      const value = String(aspectOf(ar));
+      stage.style.setProperty('--game-ar', value);
+      if (host && host !== stage) host.style.setProperty('--game-ar', value);
     },
     // Room under the picture for EmulatorJS's on-screen pad (touch
     // devices), so it never covers the game's text box.
     setTouchDock(on) {
       stage.classList.toggle('stage--dock', !!on);
+    },
+    docked: () => stage.classList.contains('stage--dock'),
+    // The pad's measured clusters ({ width, shift } per side, from the view's
+    // measurePad), so wider ones (Mega Drive's six buttons) stay in their
+    // bars, and whether it has L/R keys (a row for them in the dock).
+    setPadMetrics({ left = null, right = null, shoulders = false } = {}) {
+      const set = (name, v) => {
+        if (host && typeof v === 'number' && Number.isFinite(v)) host.style.setProperty(name, `${v}px`);
+        else if (host) host.style.removeProperty(name);
+      };
+      set('--pad-l-w', left && left.width);
+      set('--pad-l-shift', left && left.shift);
+      set('--pad-r-w', right && right.width);
+      set('--pad-r-shift', right && right.shift);
+      stage.classList.toggle('stage--shoulders', !!shoulders);
     },
     loading,
     progress: setLoadProgress,

@@ -34,7 +34,14 @@ const SMALL_EVENT = 0.04;     // changes ≤ 4 % of a box: decoration, cursor or
 const PAGE_ERASE = 0.5;       // a change that erases this share of a box's ink is a new page
 const TOGGLE_HOLD_MS = 1500;  // a pixel that toggled stays masked while it keeps changing
 const ZONE_HOLD_MS = 1000;    // arrow-cell changes are masked until stable this long
+// Both holds last at least this many polls at the actual cadence: on a phone
+// polls land 400-800 ms apart, and a blink that one or two polls in a row
+// happen to miss must stay masked (at 200-400 ms the constants above rule).
+const HOLD_POLLS = 2.5;
+const CADENCE_SAMPLES = 4;    // the cadence is the longest of the last few update intervals
+const PAUSE_MS = 1200;        // a longer interval is a pause, not the cadence (the scanner polls at least every 800 ms)
 const NONE = 0xffff;          // "no previous value" in the per-pixel memory
+const DETECT_MEMO = 6;        // detections of the last distinct frames kept (see detectSeen)
 
 // ---------------------------------------------------------------- detection
 
@@ -333,6 +340,23 @@ export function createContainerTracker({ zone = null } = {}) {
   let mem = null;             // per-pixel decoration memory
   let live = new Map();       // key -> { hash, since }
   let changed = null;         // scratch list of changed pixel indices
+  let seenFrames = [];        // [{ sum, col, boxes }] most recent first (detectSeen)
+  let lastT = -Infinity;      // time of the previous update
+  let gaps = [];              // recent intervals between updates (ms)
+  let toggleHold = TOGGLE_HOLD_MS, zoneHold = ZONE_HOLD_MS;
+
+  // Masking holds for this update, from the cadence the tracker is polled at.
+  function noteTime(t) {
+    const gap = t - lastT;
+    lastT = t;
+    if (gap > 0 && gap <= PAUSE_MS) {
+      gaps.push(gap);
+      if (gaps.length > CADENCE_SAMPLES) gaps.shift();
+    }
+    const every = gaps.length ? Math.max(...gaps) : 0;
+    toggleHold = Math.max(TOGGLE_HOLD_MS, HOLD_POLLS * every);
+    zoneHold = Math.max(ZONE_HOLD_MS, HOLD_POLLS * every);
+  }
 
   function alloc(w, h) {
     W = w; H = h;
@@ -344,7 +368,28 @@ export function createContainerTracker({ zone = null } = {}) {
       lastSmall: new Float64Array(N).fill(-Infinity) // time of the last small change
     };
     changed = new Int32Array(N);
-    prevQ = null; live = new Map();
+    prevQ = null; live = new Map(); seenFrames = [];
+  }
+
+  // Detection is a pure function of the frame, and the most expensive part
+  // of a poll. A screen the player is reading cycles through a few frames
+  // (a blinking ▼, animated water), so the boxes of the last few distinct
+  // frames are kept, keyed by the exact pixels (a checksum picks the
+  // candidate, a full comparison confirms it).
+  function detectSeen(col) {
+    const sum = checksum(col);
+    for (let i = 0; i < seenFrames.length; i++) {
+      const e = seenFrames[i];
+      if (e.sum !== sum || !samePixels(e.col, col)) continue;
+      if (i) { seenFrames.splice(i, 1); seenFrames.unshift(e); }
+      return e.boxes;
+    }
+    const boxes = detect(col, W, H);
+    const old = seenFrames.length >= DETECT_MEMO ? seenFrames.pop() : null;
+    const keep = old && old.col.length === col.length ? old.col : new Uint32Array(col.length);
+    keep.set(col);
+    seenFrames.unshift({ sum, col: keep, boxes });
+    return boxes;
   }
 
   function forget(r) {
@@ -399,7 +444,7 @@ export function createContainerTracker({ zone = null } = {}) {
     for (let y = r.y; y < r.y + r.h; y++) {
       for (let x = r.x, p = y * W + r.x; x < r.x + r.w; x++, p++, i++) {
         const age = t - lastSmall[p];
-        if (moved[p] || (toggles[p] && age <= TOGGLE_HOLD_MS) || (arrow && x >= ax && y >= ay && age <= ZONE_HOLD_MS)) m[i] = 1;
+        if (moved[p] || (toggles[p] && age <= toggleHold) || (arrow && x >= ax && y >= ay && age <= zoneHold)) m[i] = 1;
       }
     }
     for (const c of b.cursors || []) {
@@ -448,6 +493,7 @@ export function createContainerTracker({ zone = null } = {}) {
       const img = frame && frame.img;
       if (!img || !img.width || !img.height) return [];
       const t = Number.isFinite(frame.t) ? frame.t : now();
+      noteTime(t);
       if (img.width !== W || img.height !== H || !mem) alloc(img.width, img.height);
       const N = W * H;
       const col = packColours(img.data, N);
@@ -455,7 +501,7 @@ export function createContainerTracker({ zone = null } = {}) {
       let boxes;
       if (zoneNorm) boxes = [zoneBox(zoneNorm, col, W, H)];
       else {
-        boxes = detect(col, W, H).map((b) => ({ ...b, key: `${b.kind}:${round4(b.x)},${round4(b.y)},${round4(b.w)},${round4(b.h)}` }));
+        boxes = detectSeen(col).map((b) => ({ ...b, key: `${b.kind}:${round4(b.x)},${round4(b.y)},${round4(b.w)},${round4(b.h)}` }));
         if (!boxes.length) boxes = [freeBox(col, W, H)];
       }
       const seen = new Map();
@@ -468,7 +514,8 @@ export function createContainerTracker({ zone = null } = {}) {
       zoneNorm = normZone(norm);
     },
     reset() {
-      W = 0; H = 0; mem = null; prevQ = null; live = new Map(); changed = null;
+      W = 0; H = 0; mem = null; prevQ = null; live = new Map(); changed = null; seenFrames = [];
+      lastT = -Infinity; gaps = []; toggleHold = TOGGLE_HOLD_MS; zoneHold = ZONE_HOLD_MS;
     }
   };
 }
@@ -654,6 +701,19 @@ function packColours(data, N) {
   const col = scratch(N).col;
   for (let i = 0, j = 0; i < N; i++, j += 4) col[i] = (data[j] << 16) | (data[j + 1] << 8) | data[j + 2];
   return col;
+}
+
+// FNV-1a over packed colours: picks a candidate in detectSeen (not trusted alone)
+function checksum(col) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < col.length; i++) h = Math.imul(h ^ col[i], 16777619);
+  return h >>> 0;
+}
+
+function samePixels(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 // 12-bit colour (top 4 bits per channel), the same symbols fnv1a() hashes

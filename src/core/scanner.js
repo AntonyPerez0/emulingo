@@ -15,7 +15,7 @@
 // - translation is per region, cached, retried once after 3 s on failure.
 //
 // createScanner({ frameSource, tracker, engine, correct, translate,
-//   getSettings, clock, detectLanguage?, onSettingsChange?, upscale? })
+//   getSettings, clock, cpuClock?, detectLanguage?, onSettingsChange?, upscale? })
 //   -> { start, stop, pause, resume, scanNow, setZone, reset, retryRegion,
 //        dismissHint, noteEngineStatus, getState, on }
 
@@ -29,11 +29,44 @@ const SETTLE_MS = 400;
 const SETTLE_QUICK_MS = 250;
 const FREE_SETTLE_MS = 700;
 const FREE_INTERVAL_MS = 3000;
-// A whole-screen read takes 1–2 s and the next page's read waits for it:
-// text outside the boxes is read once the boxes have been still this long
-// (the player is reading, not paging through dialogue).
+// A whole-screen read takes 1–3 s on a phone, and the engine runs one job
+// at a time in one worker: a job that has started cannot be cut short, and
+// any read that comes after waits for it. So text outside the boxes is read
+// only once the boxes have been still this long. While a box the player
+// pages through (PAGED) is on screen the next A press is near certain, and
+// its page must not wait behind an optional read: there the box must have
+// been still for PAGED_QUIET_MS, unless whole-screen reads are known to be
+// quick (the last one took at most FREE_QUICK_MS: a fast desktop), so the
+// names in a battle HUD are still read. Until one has been timed it counts
+// as slow: a desktop's engine can take 4 s too, and the main thread's speed
+// doesn't tell. "Translate now" reads the rest of the screen anyway.
 const BOX_QUIET_MS = 2000;
+const PAGED_QUIET_MS = 8000;
+const FREE_QUICK_MS = 1000;
+const PAGED = new Set(['dialog', 'battle']);
+// Temporal masking of the text outside the boxes (see createOutsideMemory):
+// a pixel that changed is held for this many polls at the actual cadence,
+// one that changes again within ANIMATED_MS is animation, and a poll that
+// sees this share of the outside change is a new scene.
+const OUTSIDE_HOLD_POLLS = 2.5;
+const ANIMATED_MS = 4000;
+const SCENE_SHARE = 0.25;
+const CADENCE_SAMPLES = 4;
 const IDLE_POLL_MS = 1000;
+// A poll (frame grab + box tracking) runs on the main thread, next to the
+// emulator: on a phone it costs 15-20 ms and every one drops a frame. The
+// scanner keeps its average share of the main thread under 1 / PAYBACK (5 %)
+// with a leaky bucket: a poll that typically costs c ms owes PAYBACK × c ms,
+// and the regular polls wait until that is paid, never longer than
+// SLOWEST_POLL_MS (at 20 ms a poll they stay 400 ms apart, as long as a page
+// takes to settle). A box already seen still that is about to settle may
+// borrow one poll's worth, so a page is still read the moment it has been
+// still for 400 ms; the polls after it pay that back. A box that just
+// changed may be typing on: it waits for the next poll the budget allows.
+// A desktop poll costs 1-3 ms: its cadence and wake-ups are never held back.
+const PAYBACK = 20;
+const SLOWEST_POLL_MS = 800;
+const COST_SAMPLES = 9;
 const CORRECT_BELOW = 0.85;
 const TESSERACT_MIN_SCORE = 0.3;
 const CORRECT_BUDGET_MS = 2000;
@@ -73,6 +106,25 @@ const defaultClock = {
   clearTimeout: (id) => clearTimeout(id)
 };
 
+// Measures how long a poll keeps the main thread: injected apart from
+// `clock`, so tests with a scripted clock script poll costs too.
+const defaultCpuClock = defaultClock.now;
+
+// What a poll typically costs: the lower quartile of the recent samples. A
+// slow poll now and then (a GC pause, a content-rect re-measure, a capture's
+// listeners) does not move it, and neither do the dearer polls while a page
+// is typed (each new frame is detected afresh), so the cadence does not
+// slow down just before a page settles, when a prompt read matters most.
+// While a box the player pages through is on screen, only polls of an
+// unchanged screen count (the ones that wait for a page to settle): a run of
+// new frames before it (walking, a transition, the game starting) would
+// fill the samples and slow down the read of the first page after it.
+function lowerQuartile(samples) {
+  if (!samples.length) return 0;
+  const s = [...samples].sort((a, b) => a - b);
+  return s[(s.length - 1) >> 2];
+}
+
 // Bounded Map with least-recently-used eviction.
 function lruGet(map, key) {
   if (!map.has(key)) return undefined;
@@ -95,30 +147,150 @@ export function upscaleFactor(frameW, w, h) {
   return k;
 }
 
-// FNV-1a over the frame outside the given rects (RGB >> 4), so text
-// outside the boxes is only re-read when that part of the screen changes.
-// The exclusion mask is cached: boxes rarely move.
-let maskCache = { key: '', mask: null };
-function hashOutside(img, rects) {
-  const { data, width, height } = img;
-  const key = `${width}x${height}|${rects.map((r) => [r.x, r.y, r.w, r.h].join(',')).join(';')}`;
-  if (maskCache.key !== key) {
-    const mask = new Uint8Array(width * height);
+// The text outside the boxes is read again only when that part of the
+// screen changes: update() returns an FNV-1a hash of it, with temporal
+// masking. Animation there (water, flowers, a walking NPC) changes pixels
+// all the time, and polls 400-800 ms apart (a phone) can see an animated
+// pixel at the same phase twice in a row, so a raw hash would count it as
+// still. Each pixel adds the value it settled at:
+// - a pixel that changes keeps its old value for OUTSIDE_HOLD_POLLS polls,
+//   and while one is held the outside is not settled (`pendingUntil`): it
+//   may be animation;
+// - one that changes again within ANIMATED_MS is animation: it keeps its old
+//   value until it has been still for ANIMATED_MS, and holds nothing up;
+// - one that stays put for its hold is new content: its new value counts.
+// A poll that sees SCENE_SHARE of the outside change is a new scene
+// (walking, a transition, `scene`): what changed is held, and its next
+// change is not taken for animation.
+// It runs on every poll: each pixel is one 32-bit word (the top 4 bits of
+// each channel, 0xf0 in every byte), the runs of pixels outside the rects
+// are cached (boxes rarely move), and the pass over them has no branch per
+// pixel (one costs 4x in V8): changes are looked for only in the 32-pixel
+// blocks that have one, and held pixels are kept in a list.
+const BYTE_TOPS = 0xf0f0f0f0;
+const BLOCK = 32;
+function createOutsideMemory() {
+  let W = 0, H = 0;
+  let t0 = 0;              // times below are ms since t0 (Float32: 1 ms steps for hours)
+  let settled = null;      // value each pixel adds to the hash (signed, like px & BYTE_TOPS)
+  let seen = null;         // its value at the last poll
+  let changedAt = null;    // time of its last change (-Infinity: none, or a new scene)
+  let heldUntil = null;    // its new value counts from then, if it stays
+  let held = null;         // pixels whose seen and settled values may differ
+  let heldCount = 0;
+  let listed = null;       // 1: in `held`
+  let changed = null;      // scratch: pixels that changed this poll
+  let spanKey = '';
+  let spans = null;
+  let count = 0;           // pixels outside the rects
+
+  // the first frame (of this size) is the scene as it stands
+  function alloc(w, h, px, now) {
+    W = w; H = h; t0 = now;
+    const n = w * h;
+    settled = new Int32Array(n);
+    for (let p = 0; p < n; p++) settled[p] = px[p] & BYTE_TOPS;
+    seen = settled.slice();
+    changedAt = new Float32Array(n).fill(-Infinity);
+    heldUntil = new Float32Array(n);
+    held = new Int32Array(n);
+    heldCount = 0;
+    listed = new Uint8Array(n);
+    changed = new Int32Array(n);
+  }
+
+  function spansFor(rects) {
+    const key = `${W}x${H}|${rects.map((r) => [r.x, r.y, r.w, r.h].join(',')).join(';')}`;
+    if (key === spanKey) return;
+    const mask = new Uint8Array(W * H);
     for (const r of rects) {
-      for (let y = Math.max(0, r.y); y < Math.min(height, r.y + r.h); y++) {
-        mask.fill(1, y * width + Math.max(0, r.x), y * width + Math.min(width, r.x + r.w));
+      for (let y = Math.max(0, r.y); y < Math.min(H, r.y + r.h); y++) {
+        mask.fill(1, y * W + Math.max(0, r.x), y * W + Math.min(W, r.x + r.w));
       }
     }
-    maskCache = { key, mask };
+    const runs = [];
+    count = 0;
+    for (let p = 0; p < mask.length;) {
+      if (mask[p]) { p++; continue; }
+      const start = p;
+      while (p < mask.length && !mask[p]) p++;
+      runs.push(start, p);
+      count += p - start;
+    }
+    spanKey = key;
+    spans = Int32Array.from(runs);
   }
-  const { mask } = maskCache;
-  let h = 0x811c9dc5;
-  for (let p = 0, i = 0; p < mask.length; p++, i += 4) {
-    if (mask[p]) continue;
-    h ^= ((data[i] >> 4) << 8) | ((data[i + 1] >> 4) << 4) | (data[i + 2] >> 4);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
+
+  return {
+    // -> { hash, scene, pendingUntil }; `every` is the poll interval (ms)
+    update(img, rects, now, every) {
+      const { width, height } = img;
+      const data = img.data.byteOffset % 4 ? img.data.slice() : img.data;
+      const px = new Uint32Array(data.buffer, data.byteOffset, width * height);
+      if (width !== W || height !== H) alloc(width, height, px, now);
+      spansFor(rects);
+      const t = now - t0;
+      // locals: the hot loops must not reload closure variables
+      const S = settled, V = seen, R = spans, C = changed;
+      // a held pixel that stayed put for its hold: its new value counts
+      let kept = 0;
+      for (let i = 0; i < heldCount; i++) {
+        const p = held[i];
+        const v = px[p] & BYTE_TOPS;
+        if (v === V[p] && heldUntil[p] <= t) S[p] = v;
+        if (S[p] === V[p]) listed[p] = 0;
+        else held[kept++] = p;
+      }
+      heldCount = kept;
+      // hash what has settled; look for changes where a block has one
+      let h = 0x811c9dc5;
+      let n = 0;
+      for (let k = 0; k < R.length; k += 2) {
+        const end = R[k + 1];
+        for (let b = R[k]; b < end; b += BLOCK) {
+          const e = Math.min(end, b + BLOCK);
+          let diff = 0;
+          for (let p = b; p < e; p++) {
+            diff |= (px[p] & BYTE_TOPS) ^ V[p];
+            h = Math.imul(h ^ S[p], 0x01000193);
+          }
+          if (diff !== 0) for (let p = b; p < e; p++) if ((px[p] & BYTE_TOPS) !== V[p]) C[n++] = p;
+        }
+      }
+      const scene = n > SCENE_SHARE * count;
+      const hold = OUTSIDE_HOLD_POLLS * every;
+      let pendingUntil = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const p = C[i];
+        const animated = !scene && t - changedAt[p] <= ANIMATED_MS;
+        heldUntil[p] = t + (animated ? ANIMATED_MS : hold);
+        if (!animated) pendingUntil = now + hold;
+        changedAt[p] = scene ? -Infinity : t;
+        V[p] = px[p] & BYTE_TOPS;
+        if (!listed[p]) {
+          listed[p] = 1;
+          held[heldCount++] = p;
+        }
+      }
+      return { hash: h >>> 0, scene, pendingUntil };
+    },
+    // the same hash over the frame as it is (no masking), for the spans of
+    // the last update: what the masked hash becomes once every pixel settles
+    raw(img) {
+      if (!spans || img.width !== W || img.height !== H) return null;
+      const data = img.data.byteOffset % 4 ? img.data.slice() : img.data;
+      const px = new Uint32Array(data.buffer, data.byteOffset, W * H);
+      let h = 0x811c9dc5;
+      for (let k = 0; k < spans.length; k += 2) {
+        for (let p = spans[k]; p < spans[k + 1]; p++) h = Math.imul(h ^ (px[p] & BYTE_TOPS), 0x01000193);
+      }
+      return h >>> 0;
+    },
+    reset() {
+      W = 0; H = 0;
+      spanKey = '';
+    }
+  };
 }
 
 function copyImage(img) {
@@ -145,7 +317,7 @@ function titleCase(text) {
 export function createScanner(deps) {
   const {
     frameSource, tracker, engine, correct, translate, getSettings,
-    clock = defaultClock, detectLanguage, onSettingsChange, upscale = upscaleNearest
+    clock = defaultClock, cpuClock = defaultCpuClock, detectLanguage, onSettingsChange, upscale = upscaleNearest
   } = deps;
 
   const listeners = { status: new Set(), capture: new Set(), update: new Set() };
@@ -156,10 +328,21 @@ export function createScanner(deps) {
   const translationMemo = new Map();
   const inflight = new Map();       // `${captureId}|${regionKey}|${text}` -> settles when its translation does
   const captures = new Map();       // recent capture records by id (for retries and continuations)
-  const stats = { reads: 0, cacheHits: 0, lastReadMs: 0, engine: null };
+  // pollCostMs: main-thread ms of a poll that grabs a frame (lower quartile);
+  // pollEveryMs: the regular poll interval after the main-thread budget;
+  // screenReads: whole-screen reads started (the free frame, or the rest of
+  // the screen around the boxes)
+  const stats = { reads: 0, cacheHits: 0, lastReadMs: 0, engine: null, pollCostMs: 0, pollEveryMs: POLL_MS.normal, screenReads: 0 };
 
   let running = false;
   let timer = null;
+  const costs = [];                 // main-thread ms of recent polls that grabbed a frame
+  const steadyCosts = [];           // the same, for polls that saw no box (or free frame) change
+  let steady = false;               // the current poll saw nothing change
+  let budgetAt = -Infinity;         // when the main-thread time spent so far is paid back
+  let grabbed = false;              // the current poll grabbed a frame
+  let wakeIn = null;                // ms until the first unread box counts as settled
+  let wakeStill = null;             // the same, for boxes already seen still
   let generation = 0;
   let seen = null;                  // settings that reset the scanner when they change
   let settingsCache = null;
@@ -183,7 +366,13 @@ export function createScanner(deps) {
 
   let lastContainers = [];
   let freeLastRead = -Infinity;
-  const outside = { hash: null, since: 0, readHash: null, regions: [], rects: [] };
+  let freeReadMs = Infinity;        // how long the last whole-screen read took (unknown: slow)
+  // pendingUntil: a changed pixel outside the boxes may be animation until then
+  // readRaw: the unmasked hash of the frame the last whole-screen read saw
+  const outside = { hash: null, since: 0, pendingUntil: -Infinity, readHash: null, readRaw: null, regions: [], rects: [] };
+  const outsideMemory = createOutsideMemory();
+  const gaps = [];                  // ms between recent frames (the actual cadence)
+  let lastFrameAt = null;
 
   let dialog = createDialogTracker();
   let dialogLang = null;
@@ -324,7 +513,13 @@ export function createScanner(deps) {
   function tick() {
     timer = null;
     if (!running || pauseReasons.size) return;
+    const startedAt = clock.now();
+    const cpuStart = cpuClock();
     let next = POLL_MS.normal;
+    grabbed = false;
+    steady = false;
+    wakeIn = null;
+    wakeStill = null;
     try {
       next = poll();
       pollError = null;
@@ -335,7 +530,37 @@ export function createScanner(deps) {
       next = IDLE_POLL_MS;
     }
     refreshStatus();
-    schedule(next);
+    schedule(paced(next, startedAt, cpuClock() - cpuStart));
+  }
+
+  // The delay before the next poll: the regular cadence (`next`), or sooner
+  // when a box settles (wakeIn, wakeStill), but late enough to keep the
+  // scanner's main-thread share under 1 / PAYBACK.
+  function paced(next, startedAt, spent) {
+    const cost = Number.isFinite(spent) && spent > 0 ? spent : 0;
+    if (grabbed) {
+      costs.push(cost);
+      if (costs.length > COST_SAMPLES) costs.shift();
+      if (steady) {
+        steadyCosts.push(cost);
+        if (steadyCosts.length > COST_SAMPLES) steadyCosts.shift();
+      }
+    }
+    // (until three such polls are known, a page is not held back at all)
+    const paging = lastContainers.some((c) => PAGED.has(c.kind));
+    const typical = paging ? (steadyCosts.length >= 3 ? lowerQuartile(steadyCosts) : 0) : lowerQuartile(costs);
+    const slot = Math.min(SLOWEST_POLL_MS, typical * PAYBACK);
+    // a poll that grabbed a frame is charged the typical cost of one, so a
+    // single slow poll does not stall the next; a poll without a frame
+    // (paused, no game) costs next to nothing and is charged what it took
+    budgetAt = Math.max(budgetAt, startedAt) + (grabbed ? slot : Math.min(SLOWEST_POLL_MS, cost * PAYBACK));
+    stats.pollCostMs = Math.round(typical * 10) / 10;
+    stats.pollEveryMs = Math.round(Math.max(pollMs(settingsCache || {}), slot));
+    const owed = budgetAt - clock.now();
+    let delay = Math.max(next, Math.min(SLOWEST_POLL_MS, owed));
+    if (wakeIn !== null && wakeIn >= owed) delay = Math.min(delay, wakeIn);
+    if (wakeStill !== null) delay = Math.min(delay, Math.max(wakeStill, owed - slot));
+    return delay;
   }
 
   function poll() {
@@ -356,10 +581,12 @@ export function createScanner(deps) {
     frameAvailable = !!frame;
     // hidden view / game not started: the canvas is 0x0 (2.6b) - stay quiet
     if (!frame) return pollMs(s) * 2;
+    grabbed = true;
 
     const now = clock.now();
     const containers = tracker.update(frame) || [];
     lastContainers = containers;
+    steady = containers.length > 0 && containers.every((c) => c.settledMs > 0);
     syncScreen(containers);
     trackOutside(frame, containers, s, now);
     if (!job && !forced) startNextJob(frame, s, now);
@@ -368,17 +595,20 @@ export function createScanner(deps) {
   }
 
   // Event-driven cadence: poll again exactly when a still box will count as
-  // settled, so "wait for typing" off (250 ms) really reads sooner than on
-  // (400 ms) instead of both landing on the 200 ms grid.
+  // settled (wakeIn), so "wait for typing" off (250 ms) really reads sooner
+  // than on (400 ms) instead of both landing on the 200 ms grid; otherwise
+  // at the regular cadence (returned).
   function nextPollIn(containers, s) {
-    let next = pollMs(s);
     for (const c of containers) {
       const e = screen.get(c.key);
-      if (!e || e.processedHash === c.hash) continue;
+      // the free frame is only read automatically with "read all text" on
+      if (!e || e.processedHash === c.hash || (c.kind === 'free' && !s.readAllText)) continue;
       const wait = (c.kind === 'free' ? FREE_SETTLE_MS : settleMs(s)) - c.settledMs;
-      if (wait > 0) next = Math.min(next, Math.max(wait, 20));
+      if (wait <= 0) continue;
+      wakeIn = Math.min(wakeIn ?? Infinity, Math.max(wait, 20));
+      if (c.settledMs > 0) wakeStill = Math.min(wakeStill ?? Infinity, Math.max(wait, 20));
     }
-    return next;
+    return pollMs(s);
   }
 
   function ensurePrepared(lang) {
@@ -538,8 +768,12 @@ export function createScanner(deps) {
     const run = (async () => {
       let raw = cached;
       if (!raw) {
-        if (c.kind === 'free') freeLastRead = clock.now();
+        if (c.kind === 'free') {
+          freeLastRead = clock.now();
+          stats.screenReads++;
+        }
         raw = await runEngine(c, frame, lang, spec);
+        if (c.kind === 'free') freeReadMs = clock.now() - freeLastRead;
         if (!raw.skipped) readSucceeded(raw);
       }
       if (gen !== generation) return;
@@ -594,8 +828,21 @@ export function createScanner(deps) {
     return containers.filter((c) => FRAMED.has(c.kind)).map((c) => ({ x: c.x, y: c.y, w: c.w, h: c.h }));
   }
 
+  // The poll interval as it actually is (the main-thread budget stretches it
+  // on a phone): the longest of the last few gaps between frames, never
+  // shorter than the scan speed's. Longer gaps are pauses, not the cadence.
+  function noteFrame(now) {
+    const gap = lastFrameAt === null ? 0 : now - lastFrameAt;
+    lastFrameAt = now;
+    if (gap <= 0 || gap > 1.5 * SLOWEST_POLL_MS) return;
+    gaps.push(gap);
+    if (gaps.length > CADENCE_SAMPLES) gaps.shift();
+  }
+  const cadence = (s) => Math.max(pollMs(s), ...gaps);
+
   function trackOutside(frame, containers, s, now) {
     lastFrame = frame;
+    noteFrame(now);
     const rects = framedRects(containers);
     if (!s.readAllText || !rects.length || containers.some((c) => c.kind === 'zone' || c.kind === 'free')) {
       outside.hash = null;
@@ -603,24 +850,34 @@ export function createScanner(deps) {
       outside.regions = [];
       return;
     }
-    const h = hashOutside(frame.img, rects);
+    const { hash: h, scene, pendingUntil } = outsideMemory.update(frame.img, rects, now, cadence(s));
     outside.rects = rects;
+    outside.pendingUntil = Math.max(outside.pendingUntil, pendingUntil);
     if (h !== outside.hash) {
       outside.hash = h;
       outside.since = now;
-      // what was read there is gone; the new scene is read once it settles
-      outside.regions = [];
+      // Pixels held while they changed (animation, a sign drawn where an NPC
+      // walked) settle to exactly the frame that was read last: nothing new.
+      // Otherwise what was read there is gone; the new scene is read once it
+      // settles.
+      if (h === outside.readRaw) outside.readHash = h;
+      else outside.regions = [];
+    } else if (scene) {
+      outside.since = now;
     }
   }
 
   const outsideKey = () => `outside|${(outside.rects || []).map((r) => [r.x, r.y, r.w, r.h].join(',')).join(';')}|${outside.hash}`;
 
-  // Low priority: only once every box is read and has been still for 2 s,
-  // and the rest of the screen for 700 ms (the caller allows one read per 3 s).
+  // Low priority: only once every box is read and has been still for 2 s
+  // (a box the player pages through: 8 s, unless whole-screen reads are
+  // known to be quick), and the rest of the screen for 700 ms with nothing
+  // held that may be animation (the caller allows one read per 3 s).
   function shouldReadOutside(now) {
     if (outside.hash === null || outside.hash === outside.readHash) return false;
-    if (now - outside.since < FREE_SETTLE_MS) return false;
-    return !lastContainers.some((c) => c.settledMs < BOX_QUIET_MS ||
+    if (now - outside.since < FREE_SETTLE_MS || now < outside.pendingUntil) return false;
+    const pagedQuiet = freeReadMs <= FREE_QUICK_MS ? BOX_QUIET_MS : PAGED_QUIET_MS;
+    return !lastContainers.some((c) => c.settledMs < (PAGED.has(c.kind) ? pagedQuiet : BOX_QUIET_MS) ||
       (screen.get(c.key) && screen.get(c.key).processedHash !== c.hash));
   }
 
@@ -634,8 +891,12 @@ export function createScanner(deps) {
       const k = upscaleFactor(frame.w, frame.w, frame.h);
       const img = scaled(frame.img, k);
       freeLastRead = clock.now();
+      stats.screenReads++;
       outside.readHash = hash;
+      // the frame as it is: once the masked hash catches up with it, nothing is new
+      outside.readRaw = outsideMemory.raw(frame.img);
       const res = await engine.read({ img, k, offset: { x: 0, y: 0 }, lang, mode: 'free' });
+      freeReadMs = clock.now() - freeLastRead;
       readSucceeded(res);
       if (gen !== generation) return;
       const inside = (l) => {
@@ -992,7 +1253,10 @@ export function createScanner(deps) {
     translationError = null;
     outside.hash = null;
     outside.readHash = null;
+    outside.readRaw = null;
     outside.regions = [];
+    outside.pendingUntil = -Infinity;
+    outsideMemory.reset();
     freeLastRead = -Infinity;
     readFailures = 0;
     backoffUntil = 0;

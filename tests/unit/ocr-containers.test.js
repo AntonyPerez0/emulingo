@@ -305,6 +305,39 @@ describe('createContainerTracker', () => {
       expect(last.settledMs).toBeGreaterThan(0);
       expect(last.settledMs).toBeLessThan(frames.length * 200 - 3 * 200);
     });
+
+    // A phone under the scanner's main-thread budget polls up to 800 ms
+    // apart: the holds last 2.5 polls, so a blink that two polls in a row
+    // miss stays masked (1000 / 1500 ms holds would show it).
+    const at = (frames, times, tracker = createContainerTracker()) =>
+      frames.map((img, i) => tracker.update(frame(img, times[i])).find((c) => c.kind === 'dialog'));
+    const every = (ms, n) => Array.from({ length: n }, (_, i) => i * ms);
+
+    it('keeps the arrow masked at 800 ms polls when two polls in a row miss a blink', () => {
+      const seq = [on, off, off, off, on, on, on, off, off, off, on, on, on, off];
+      const cs = at(seq, every(800, seq.length));
+      expect(new Set(cs.slice(1).map((c) => c.hash)).size).toBe(1);
+      expect(cs[1].hash).toBe(offHash);
+      // still since the first blink
+      expect(cs.at(-1).settledMs).toBe((seq.length - 2) * 800);
+    });
+
+    it('shows an arrow-cell glyph that stays after 2.5 polls at 800 ms', () => {
+      const seq = [off, off, ...Array(8).fill(on)];
+      const cs = at(seq, every(800, seq.length));
+      // it appears at 1600 ms: masked up to 2000 ms after, shown from 2400
+      expect(cs.findIndex((c) => c.hash !== offHash)).toBe(5);
+      expect(cropMatches(cs.at(-1), on)).toBe(true);
+    });
+
+    it('takes the holds from the polls, not from a pause between them', () => {
+      // 200 ms polls, the game paused for 10 s, 200 ms polls again: the glyph
+      // that appears after the pause is shown after the usual 1 s
+      const seq = [off, off, off, off, ...Array(8).fill(on)];
+      const times = [0, 200, 400, 600, ...every(200, 8).map((t) => 10600 + t)];
+      const cs = at(seq, times);
+      expect(cs.findIndex((c) => c.hash !== offHash)).toBe(4 + 6);
+    });
   });
 
   describe('blinking arrow at the end of the text (GBA)', () => {
@@ -475,6 +508,30 @@ describe('createContainerTracker', () => {
     expect(cs[0]).toMatchObject({ kind: 'zone', x: 80, y: 72, w: 40, h: 36, settledMs: 0 });
     tr.setZone(null);
     expect(tr.update(frame(img, 400)).map((c) => c.kind)).toEqual(['dialog']);
+  });
+
+  it('reuses the boxes of frames it has seen, and only of exactly those frames', () => {
+    const ids = ['gb1-oak-hello-en', 'gb1-yesno-save-en', 'gb1-overworld-notext', 'gb2-mart-de', 'gba-battle-menu-en', 'gba-oak-hello-en'];
+    const imgs = ids.map((id) => scene(id).img);
+    // one pixel of the GB dialog's frame line and one of its text changed
+    const edge = clone(imgs[0]);
+    fill(edge, 40, 98, 1, 1, [255, 255, 255]);
+    const ink = clone(imgs[0]);
+    fill(ink, 60, 114, 2, 2, [255, 255, 255]);
+    const all = [...imgs, edge, ink];
+    const shape = (cs) => cs.filter((c) => c.kind !== 'free').map((c) => [c.kind, c.x, c.y, c.w, c.h, String(c.fg)]);
+    const tr = createContainerTracker();
+    // more distinct frames than are kept, revisited in a scrambled order
+    const order = [0, 6, 0, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 7, 6, 3, 3, 1, 5, 0, 2, 4, 7];
+    order.forEach((k, i) => {
+      const img = all[k];
+      expect(shape(tr.update(frame(img, i * 200))), `frame ${i} (${k})`).toEqual(shape(findContainers(img)));
+    });
+    // a frame changed in place after it was seen is detected again
+    const live = clone(imgs[0]);
+    expect(tr.update(frame(live, 9000)).map((c) => c.kind)).toEqual(['dialog']);
+    live.data.set(imgs[2].data);
+    expect(tr.update(frame(live, 9200)).map((c) => c.kind)).toEqual(['free']);
   });
 
   it('never reports a negative settle time when the clock steps back', () => {

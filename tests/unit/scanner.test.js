@@ -98,8 +98,13 @@ function createWorld(clock) {
     cells: false,
     grabs: 0,
     resets: 0,
-    zone: null
+    zone: null,
+    // main-thread cost of a grab, on a scripted CPU clock (desktop: ~1 ms)
+    grabCost: 1,
+    grabTimes: [],
+    cpu: 0
   };
+  world.cpuClock = () => world.cpu;
   const hashes = new Map();
   const hashOf = (s) => {
     if (!hashes.has(s)) hashes.set(s, hashes.size + 1);
@@ -109,6 +114,8 @@ function createWorld(clock) {
     grab() {
       world.grabs++;
       if (!world.available) return null;
+      world.cpu += typeof world.grabCost === 'function' ? world.grabCost(world.grabTimes.length) : world.grabCost;
+      world.grabTimes.push(clock.now());
       return { img: { data: new Uint8ClampedArray(16 * 16 * 4), width: 16, height: 16 }, w: 160, h: 144, t: clock.now() };
     }
   };
@@ -225,6 +232,7 @@ function setup(overrides = {}, settingsOverrides = {}) {
     translate,
     getSettings: () => settings,
     clock,
+    cpuClock: world.cpuClock,
     detectLanguage: overrides.detectLanguage,
     onSettingsChange: (fn) => { settingsListeners.add(fn); return () => settingsListeners.delete(fn); },
     upscale: (img, k) => ({ ...img, width: img.width * k, height: img.height * k, k })
@@ -491,7 +499,7 @@ describe('scanner: free text and settings', () => {
 
   it('reads text outside the boxes at low priority when allowed', async () => {
     const t = setup({}, { readAllText: true });
-    t.world.show([GB_DIALOG, 'wild']);
+    t.world.show([GB_MENU, 'start-menu']);
     READS['outside'] = [];
     t.scanner.start();
     await t.clock.advance(5000);
@@ -501,15 +509,59 @@ describe('scanner: free text and settings', () => {
     expect(t.engine.maxInFlight).toBe(1);
   });
 
-  it('leaves the rest of the screen alone while the player pages through dialogue', async () => {
+  // A 160×144 frame with something drawn outside the boxes: `paint` changes it.
+  function paintedScreen(t) {
+    const W = 160, H = 144;
+    const data = new Uint8ClampedArray(W * H * 4).fill(255);
+    const grab = t.world.frameSource.grab;
+    t.world.frameSource.grab = () => {
+      const f = grab();
+      if (f) f.img = { data: data.slice(), width: W, height: H };
+      return f;
+    };
+    return (x, y, w, h, v) => {
+      for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) data.set([v, v, v, 255], (yy * W + xx) * 4);
+    };
+  }
+
+  it('waits long for the rest of the screen while a dialog or battle box is on screen, where whole-screen reads are slow (a phone)', async () => {
+    for (const box of [GB_DIALOG, { ...GB_DIALOG, key: 'battle:0,96,160,48', kind: 'battle' }]) {
+      const t = setup({}, { readAllText: true });
+      paintedScreen(t)(16, 16, 24, 8, 0);
+      // (no whole-screen read timed yet: taken for a slow one)
+      t.scanner.start();
+      ['p1', 'p2', 'p3'].forEach((p, i) => t.clock.at(i * 1500, () => t.world.show([box, p])));
+      // the player lingers on the last page: a whole-screen read started
+      // soon would hold up the next page's read, and that press is likely
+      await t.clock.advance(3000 + 7900);
+      expect(t.engine.calls.map((c) => c.mode), box.kind).toEqual(['container', 'container', 'container']);
+      // still for 8 s: the rest of the screen is read after all
+      await t.clock.advance(400);
+      expect(t.engine.calls.map((c) => c.mode), box.kind).toEqual(['container', 'container', 'container', 'free']);
+      expect(t.scanner.getState().stats.screenReads).toBe(1);
+    }
+  });
+
+  it('reads the rest of the screen 2 s into a still dialog or battle where whole-screen reads are quick (a desktop)', async () => {
+    const battle = { ...GB_DIALOG, key: 'battle:0,96,160,48', kind: 'battle' };
     const t = setup({}, { readAllText: true });
+    const paint = paintedScreen(t);
+    // a menu first: its scene is read in 300 ms (the fake engine's latency)
+    t.world.show([GB_MENU, 'start-menu']);
     t.scanner.start();
-    ['p1', 'p2', 'p3'].forEach((p, i) => t.clock.at(i * 1500, () => t.world.show([GB_DIALOG, p])));
-    await t.clock.advance(4900);
-    // a whole-screen read would have held up the next page's read
-    expect(t.engine.calls.map((c) => c.mode)).toEqual(['container', 'container', 'container']);
-    await t.clock.advance(1000);
-    expect(t.engine.calls.map((c) => c.mode)).toContain('free');
+    await t.clock.advance(3000);
+    expect(t.engine.calls.map((c) => c.mode)).toEqual(['container', 'free']);
+    // a battle: its box, and the foe's name and level above it
+    const reads = [];
+    const read = t.engine.read;
+    t.engine.read = (job) => { reads.push([t.clock.now(), job.mode]); return read(job); };
+    t.world.show([battle, 'wild']);
+    paint(16, 16, 48, 8, 0);
+    await t.clock.advance(4000);
+    expect(reads.map(([, mode]) => mode)).toEqual(['container', 'free']);
+    // once the box has been still for 2 s (it was first seen at 3000)
+    expect(reads[1][0]).toBeGreaterThanOrEqual(3000 + 2000);
+    expect(reads[1][0]).toBeLessThanOrEqual(3000 + 2000 + 400);
   });
 
   it('pauses on the settings toggle and when there is no game language', async () => {
@@ -1054,13 +1106,13 @@ describe('scanner: review fixes', () => {
     const t = setup({}, { readAllText: true });
     t.world.free = 'empty';
     const outsideReads = () => t.engine.calls.filter((c) => c.mode === 'free' && !('content' in c.img)).length;
-    t.world.show([GB_DIALOG, 'wild']);
+    t.world.show([GB_MENU, 'start-menu']);
     t.scanner.start();
     await t.clock.advance(5000);
     expect(outsideReads()).toBe(1);
     t.world.show();
     await t.clock.advance(2000);
-    t.world.show([GB_DIALOG, 'wild']);
+    t.world.show([GB_MENU, 'start-menu']);
     await t.clock.advance(6000);
     expect(outsideReads()).toBe(1);
   });
@@ -1112,5 +1164,394 @@ describe('scanner: review fixes', () => {
     await t.clock.advance(1500);
     expect(t.scanner.getState().capture.dialog).toMatchObject({ text: 'Hello there! Welcome to the', status: 'done' });
     expect(t.translate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('scanner: main-thread budget (slow phones)', () => {
+  const gaps = (times) => times.slice(1).map((at, i) => at - times[i]);
+
+  it('keeps the normal cadence when a poll is cheap (desktop)', async () => {
+    const t = setup();
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(3000);
+    expect(gaps(t.world.grabTimes).every((g) => g === 200)).toBe(true);
+    expect(t.engine.calls).toHaveLength(1);
+    expect(t.scanner.getState().stats).toMatchObject({ pollCostMs: 1, pollEveryMs: 200 });
+  });
+
+  it('spaces expensive polls so they take at most ~5 % of the main thread, and still reads', async () => {
+    const t = setup();
+    t.world.grabCost = 25; // a slow phone: frame grab + box tracking
+    t.world.show([GB_MENU, 'start-menu']);
+    t.scanner.start();
+    await t.clock.advance(1000);
+    // settled at 400 ms, read on the first poll the budget allows
+    expect(t.world.grabTimes).toEqual([0, 500, 1000]);
+    expect(t.engine.calls).toHaveLength(1);
+    await t.clock.advance(5000);
+    // 25 ms × 20 apart
+    expect(gaps(t.world.grabTimes).every((x) => x === 500)).toBe(true);
+    expect((25 * t.world.grabTimes.length) / 6000).toBeLessThanOrEqual(0.055);
+    expect(t.scanner.getState().stats).toMatchObject({ pollCostMs: 25, pollEveryMs: 500 });
+    expect(t.captures()).toHaveLength(1);
+  });
+
+  it('paces a dialog by what a poll of the still screen costs, once three are known', async () => {
+    const t = setup();
+    t.world.grabCost = 25;
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(6000);
+    // the first page is not held back while that is unknown (three polls
+    // at the normal cadence, the page read when it settles at 400 ms), then
+    // 25 ms × 20 apart
+    expect(t.world.grabTimes.slice(0, 5)).toEqual([0, 200, 400, 600, 1100]);
+    expect(gaps(t.world.grabTimes.slice(3)).every((x) => x === 500)).toBe(true);
+    expect(t.scanner.getState().stats).toMatchObject({ pollCostMs: 25, pollEveryMs: 500 });
+    expect(t.captures()).toHaveLength(1);
+  });
+
+  it('lets settle wake-ups through while the budget allows', async () => {
+    // "wait for typing" off: a still box counts as settled after 250 ms; a
+    // 6 ms poll owes 120 ms, so the wake-up 50 ms after the 200 ms poll runs
+    const t = setup({}, { waitForTyping: false });
+    t.world.grabCost = 6;
+    t.world.show([GB_DIALOG, 'p1']);
+    t.scanner.start();
+    await t.clock.advance(250);
+    expect(t.world.grabTimes).toEqual([0, 200, 250]);
+    expect(t.engine.calls).toHaveLength(1);
+  });
+
+  it('reads a page the moment it has been still for 400 ms, between budget-paced polls', async () => {
+    const t = setup();
+    t.world.grabCost = 17.5; // 350 ms apart
+    t.scanner.start();
+    t.clock.at(1234, () => t.world.show([GB_DIALOG, 'wild']));
+    await t.clock.advance(1799);
+    // the box appears at the 1400 poll and is still at 1750: it settles at
+    // 1800, before the next poll the budget allows (2100)
+    expect(t.world.grabTimes).toEqual([0, 350, 700, 1050, 1400, 1750]);
+    expect(t.engine.calls).toHaveLength(0);
+    await t.clock.advance(1);
+    expect(t.engine.calls).toHaveLength(1);
+    // the early poll is paid back
+    await t.clock.advance(1000);
+    expect(t.world.grabTimes.slice(6)).toEqual([1800, 2450, 2800]);
+  });
+
+  it('keeps to the budget while a page is typed (every poll sees a change)', async () => {
+    const t = setup();
+    t.world.grabCost = 25;
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    for (let i = 0; i < 60; i++) t.clock.at(2000 + i * 50, () => t.world.show([GB_DIALOG, `typing-${i}`]));
+    t.clock.at(5000, () => t.world.show([GB_DIALOG, 'p1']));
+    await t.clock.advance(8000);
+    // a box that keeps changing borrows nothing: 500 ms apart throughout
+    // (after the three polls that tell what a still poll costs), and the
+    // page is read on the first poll after it settled
+    expect(gaps(t.world.grabTimes.slice(3)).every((g) => g === 500)).toBe(true);
+    expect(t.engine.calls).toHaveLength(2);
+    expect(t.captures()[1].dialog.text).toBe('Hello there! Welcome to the');
+  });
+
+  it('does not hold back the first page at game start, before it knows what a still poll costs', async () => {
+    const t = setup({}, { scanSpeed: 'relaxed' }); // a phone: 300 ms
+    // the first poll is cold (120 ms), each one that sees the page typing
+    // detects a new frame (40 ms), a still one costs 15 ms
+    t.world.grabCost = (i) => (i === 0 ? 120 : t.clock.now() < 2000 ? 40 : 15);
+    const reads = [];
+    const read = t.engine.read;
+    t.engine.read = (job) => { reads.push(t.clock.now()); return read(job); };
+    t.scanner.start();
+    for (let i = 0; i < 40; i++) t.clock.at(i * 50, () => t.world.show([GB_DIALOG, `typing-${i}`]));
+    t.clock.at(2000, () => t.world.show([GB_DIALOG, 'p1']));
+    await t.clock.advance(5000);
+    // typed at 2000: seen within one 300 ms poll, read once still for 400 ms
+    expect(reads).toHaveLength(1);
+    expect(reads[0]).toBeLessThanOrEqual(2000 + 300 + 400);
+    // and then the budget: 15 ms × 20 apart
+    expect(t.scanner.getState().stats).toMatchObject({ pollCostMs: 15, pollEveryMs: 300 });
+  });
+
+  it('reads the first page after a run of new frames promptly, keeping to the budget during the run (walking, then a dialog)', async () => {
+    const t = setup({}, { scanSpeed: 'relaxed' });
+    // a poll that sees a new frame costs 40 ms (detected afresh), a still one 15 ms
+    let lastKey = null;
+    t.world.grabCost = () => {
+      const key = JSON.stringify([t.world.boxes.map((b) => b.content), t.world.free]);
+      const cost = key === lastKey ? 15 : 40;
+      lastKey = key;
+      return cost;
+    };
+    const reads = [];
+    const read = t.engine.read;
+    t.engine.read = (job) => { reads.push([t.clock.now(), job.offset && job.offset.y]); return read(job); };
+    t.world.show([GB_MENU, 'start-menu']);
+    t.scanner.start();
+    // the menu closes and the player walks (no box, the map scrolls) for 4 s
+    t.clock.at(2000, () => t.world.show());
+    for (let i = 0; i < 80; i++) t.clock.at(2000 + i * 50, () => { t.world.free = `map-${i}`; });
+    // then talks to someone: the page types for a second
+    for (let i = 0; i < 20; i++) t.clock.at(6000 + i * 50, () => t.world.show([GB_DIALOG, `typing-${i}`]));
+    t.clock.at(7000, () => t.world.show([GB_DIALOG, 'p1']));
+    await t.clock.advance(9000);
+    // walking: once the samples are all new frames, paced at 40 ms × 20
+    const walking = t.world.grabTimes.filter((at) => at >= 3800 && at <= 6200);
+    expect(walking.length).toBeGreaterThanOrEqual(3);
+    expect(gaps(walking).every((g) => g === 800)).toBe(true);
+    // the page: read within one 300 ms poll and 400 ms of being typed
+    const dialogReads = reads.filter(([, y]) => y === GB_DIALOG.y - 4);
+    expect(dialogReads).toHaveLength(1);
+    expect(dialogReads[0][0]).toBeLessThanOrEqual(7000 + 300 + 400);
+    expect(t.captures().at(-1).dialog.text).toBe('Hello there! Welcome to the');
+  });
+
+  it('does not slow down while a page is typed, when each poll costs more', async () => {
+    const t = setup({}, { scanSpeed: 'relaxed' }); // a phone: 300 ms
+    // 15 ms a poll (300 ms at 5 %), 30 ms while the page types (new frames)
+    t.world.grabCost = () => (t.clock.now() >= 3000 && t.clock.now() <= 4200 ? 30 : 15);
+    t.world.show([GB_DIALOG, 'p1']);
+    t.scanner.start();
+    for (let i = 0; i < 20; i++) t.clock.at(3000 + i * 50, () => t.world.show([GB_DIALOG, `typing-${i}`]));
+    t.clock.at(4000, () => t.world.show([GB_DIALOG, 'p2']));
+    await t.clock.advance(4399);
+    // (p1 is read at 400 ms, on a wake-up between the 300 ms polls)
+    expect(gaps(t.world.grabTimes.filter((at) => at >= 400)).every((g) => g === 300)).toBe(true);
+    expect(t.scanner.getState().stats).toMatchObject({ pollCostMs: 15, pollEveryMs: 300 });
+    expect(t.engine.calls).toHaveLength(1);
+    // p2 is first seen at 4000 and read the moment it has been still 400 ms
+    await t.clock.advance(1);
+    expect(t.engine.calls).toHaveLength(2);
+  });
+
+  it('returns to the normal cadence once polls are cheap again', async () => {
+    const t = setup();
+    t.world.grabCost = 20;
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(3000);
+    expect(t.scanner.getState().stats.pollEveryMs).toBe(400);
+    t.world.grabCost = 1;
+    await t.clock.advance(3000);
+    const recent = t.world.grabTimes.filter((at) => at >= 4500);
+    expect(recent.length).toBeGreaterThanOrEqual(7);
+    expect(gaps(recent).every((g) => g === 200)).toBe(true);
+    expect(t.scanner.getState().stats).toMatchObject({ pollCostMs: 1, pollEveryMs: 200 });
+  });
+
+  it('is not slowed down by one slow poll', async () => {
+    const t = setup();
+    // a GC pause or a content-rect re-measure in the 6th poll
+    t.world.grabCost = (i) => (i === 5 ? 60 : 1);
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(3000);
+    expect(gaps(t.world.grabTimes).every((g) => g === 200)).toBe(true);
+  });
+
+  it('never waits longer than 800 ms between polls, however slow they are', async () => {
+    const t = setup();
+    t.world.grabCost = 100;
+    t.world.show([GB_DIALOG, 'wild']);
+    t.scanner.start();
+    await t.clock.advance(6000);
+    const g = gaps(t.world.grabTimes);
+    expect(Math.max(...g)).toBe(800);
+    // (after the three polls that tell what a still poll costs)
+    expect(g.slice(3).every((x) => x === 800)).toBe(true);
+    expect(t.scanner.getState().stats.pollEveryMs).toBe(800);
+    expect(t.captures()).toHaveLength(1);
+  });
+
+  it('does not count polls without a frame as expensive ones', async () => {
+    const t = setup();
+    t.world.grabCost = 16;
+    t.world.available = false;
+    t.scanner.start();
+    await t.clock.advance(2000);
+    // no frame: the quiet 400 ms cadence, nothing charged
+    expect(t.world.grabs).toBe(6);
+    expect(t.scanner.getState().stats.pollCostMs).toBe(0);
+    t.world.available = true;
+    t.world.show([GB_DIALOG, 'wild']);
+    await t.clock.advance(2000);
+    expect(t.scanner.getState().stats.pollCostMs).toBe(16);
+    expect(t.captures()).toHaveLength(1);
+  });
+});
+
+describe('scanner: text outside the boxes', () => {
+  it('reads the rest of the screen again only when pixels outside the boxes change', async () => {
+    const t = setup({}, { readAllText: true });
+    const W = 160, H = 144;
+    const data = new Uint8ClampedArray(W * H * 4).fill(255);
+    const paint = (x, y, v) => data.set([v, v, v, 255], (y * W + x) * 4);
+    const grab = t.world.frameSource.grab;
+    t.world.frameSource.grab = () => {
+      const f = grab();
+      if (f) f.img = { data: data.slice(), width: W, height: H };
+      return f;
+    };
+    const outsideReads = () => t.engine.calls.filter((c) => c.mode === 'free').length;
+    t.world.show([GB_MENU, 'start-menu']);
+    t.scanner.start();
+    await t.clock.advance(5000);
+    expect(outsideReads()).toBe(1);
+    // inside the menu box: the box tracker's business, not a new scene
+    paint(100, 60, 0);
+    await t.clock.advance(5000);
+    expect(outsideReads()).toBe(1);
+    // a 4-bit step outside the box is a new scene; less is filtering noise
+    paint(20, 20, 247);
+    await t.clock.advance(5000);
+    expect(outsideReads()).toBe(1);
+    paint(20, 20, 200);
+    await t.clock.advance(5000);
+    expect(outsideReads()).toBe(2);
+  });
+
+  // A 160×144 frame drawn for the poll's time: tiles that never repeat
+  // (scrolled `scroll(now)` px), a pond whose two phases swap every 16
+  // frames (the test ROM's), optionally flowers cycling three colours and an
+  // NPC stepping back and forth, all outside GB_MENU (x 83-156); `extra`
+  // draws more. A whole-screen read takes `freeMs` (a phone: 1-3 s).
+  // Returns the engine's reads: [start time, mode].
+  function animatedScreen(t, { pond = true, busy = false, scroll = () => 0, extra = null, freeMs = 0 } = {}) {
+    const W = 160, H = 144;
+    const grab = t.world.frameSource.grab;
+    t.world.frameSource.grab = () => {
+      const f = grab();
+      if (!f) return f;
+      const now = t.clock.now();
+      const data = new Uint8ClampedArray(W * H * 4);
+      const fill = (x0, y0, w, h, v) => {
+        for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) data.set([v, v, v, 255], (y * W + x) * 4);
+      };
+      const off = scroll(now);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) fill(x, y, 1, 1, Math.imul(((x + off) >> 3) * 73856093 ^ (y >> 3) * 19349663, 0x9e3779b1) >>> 31 ? 96 : 208);
+      }
+      if (pond) fill(8, 72, 40, 32, Math.floor(now / (16000 / 60)) % 2 ? 64 : 160);
+      if (busy) {
+        fill(56, 24, 8, 8, [32, 128, 240][Math.floor(now / 400) % 3]);
+        fill(Math.floor(now / 1500) % 2 ? 40 : 16, 112, 16, 16, 0);
+      }
+      if (extra) extra(fill, now);
+      f.img = { data, width: W, height: H };
+      return f;
+    };
+    const reads = [];
+    const read = t.engine.read;
+    t.engine.read = (job) => {
+      reads.push([t.clock.now(), job.mode]);
+      if (job.mode !== 'free' || !freeMs) return read(job);
+      return new Promise((resolve) => t.clock.setTimeout(() => resolve({ lines: [], ms: freeMs, engine: 'neural' }), freeMs));
+    };
+    return reads;
+  }
+
+  it('takes an animated background for animation, not for text that settled, at phone cadences', async () => {
+    // a phone under the main-thread budget polls 380-800 ms apart: a raw
+    // hash sees the pond at the same phase twice in a row now and then, and
+    // read the screen again for each phase (two reads, at 400-800 ms)
+    for (const busy of [false, true]) {
+      for (const every of [380, 440, 533, 600, 700, 800]) {
+        const t = setup({}, { readAllText: true });
+        t.world.grabCost = every / 20;
+        const reads = animatedScreen(t, { busy });
+        t.world.show([GB_MENU, 'start-menu']);
+        t.scanner.start();
+        await t.clock.advance(60000);
+        // the still part of the scene is read once (at 533 ms the polls only
+        // ever see one phase of the pond: still too), and the animation never
+        // has it read again
+        expect(reads.filter(([, mode]) => mode === 'free').length, `${every} ms${busy ? ', flowers and an NPC' : ''}`).toBe(1);
+      }
+    }
+  });
+
+  it('still reads new text outside the boxes while the background animates', async () => {
+    for (const every of [200, 440, 800]) {
+      const t = setup({}, { readAllText: true });
+      t.world.grabCost = every / 20;
+      const reads = animatedScreen(t, { busy: true, extra: (fill, now) => { if (now >= 20000) fill(16, 8, 48, 8, 0); } });
+      t.world.show([GB_MENU, 'start-menu']);
+      t.scanner.start();
+      await t.clock.advance(40000);
+      const free = reads.filter(([, mode]) => mode === 'free').map(([at]) => at);
+      expect(free, `${every} ms`).toHaveLength(2);
+      // read once the sign has stayed put for 2.5 polls and the rest of the
+      // screen has been still for 700 ms: at most a poll to see it, the hold
+      // and the 700 ms each rounded up to a poll (1.4 s at 200 ms polls)
+      expect(free[1] - 20000, `${every} ms`).toBeGreaterThan(2.5 * every + 700);
+      expect(free[1] - 20000, `${every} ms`).toBeLessThanOrEqual(5 * every + 700);
+    }
+  });
+
+  it('does not take a new scene for animation (walking scrolls the map)', async () => {
+    for (const every of [200, 440, 800]) {
+      const t = setup({}, { readAllText: true });
+      t.world.grabCost = every / 20;
+      // scrolled 1 px a frame from 10 to 14 s
+      const reads = animatedScreen(t, { scroll: (now) => Math.floor((Math.min(Math.max(now, 10000), 14000) - 10000) / (1000 / 60)) });
+      t.world.show([GB_MENU, 'start-menu']);
+      t.scanner.start();
+      await t.clock.advance(30000);
+      const free = reads.filter(([, mode]) => mode === 'free').map(([at]) => at);
+      // the first scene, and the new one once it has stopped scrolling (held
+      // 2.5 polls, then still for 700 ms); never the scrolling itself
+      expect(free, `${every} ms`).toHaveLength(2);
+      expect(free[0]).toBeLessThan(10000);
+      expect(free[1] - 14000, `${every} ms`).toBeGreaterThan(2.5 * every + 700);
+      expect(free[1] - 14000, `${every} ms`).toBeLessThanOrEqual(5 * every + 700);
+    }
+  });
+
+  it('does not read a sign again once the pixels held under it settle to what was read (an NPC stood there)', async () => {
+    for (const [every, count] of [[200, 3], [800, 2]]) {
+      const t = setup({}, { readAllText: true });
+      t.world.grabCost = every / 20;
+      // an NPC stands at a spot from 7 to 9 s; a sign is drawn over it at 10 s
+      const reads = animatedScreen(t, {
+        pond: false,
+        extra: (fill, now) => {
+          if (now >= 7000 && now < 9000) fill(16, 8, 16, 16, 0);
+          if (now >= 10000) fill(16, 8, 48, 8, 30);
+        }
+      });
+      t.world.show([GB_MENU, 'start-menu']);
+      t.scanner.start();
+      await t.clock.advance(20000);
+      // the scene, the NPC (at 200 ms: seen standing), the sign: once each
+      const free = reads.filter(([, mode]) => mode === 'free').map(([at]) => at);
+      expect(free, `${every} ms`).toHaveLength(count);
+      expect(free.at(-1), `${every} ms`).toBeGreaterThan(10000);
+    }
+  });
+
+  it('reads every page the moment it settles, with no whole-screen read in the way, at phone cadences', async () => {
+    for (const every of [200, 500, 800]) {
+      const t = setup({}, { readAllText: true });
+      t.world.grabCost = every / 20;
+      // the player reads each page for 4 s; the rest of the screen is still,
+      // with something new on it for every page (an NPC walked up), and a
+      // whole-screen read takes 3 s: started while the player reads, it would
+      // still be running when the next page settles
+      const reads = animatedScreen(t, { pond: false, freeMs: 3000, extra: (fill, now) => fill(16 + 16 * Math.floor(now / 4000), 16, 8, 8, 0) });
+      t.scanner.start();
+      const pages = ['p1', 'p2', 'p3', 'wild'];
+      pages.forEach((p, i) => t.clock.at(i * 4000, () => t.world.show([GB_DIALOG, p])));
+      await t.clock.advance(pages.length * 4000);
+      expect(reads.map(([, mode]) => mode), `${every} ms`).toEqual(['container', 'container', 'container', 'container']);
+      // each read starts on the first poll after the page has been still for
+      // 400 ms since the scanner first saw it
+      reads.forEach(([at], i) => {
+        const seen = t.world.grabTimes.find((g) => g >= i * 4000);
+        expect(at - seen, `${every} ms, page ${i + 1}`).toBeLessThanOrEqual(400 + every);
+      });
+    }
   });
 });

@@ -1,7 +1,61 @@
 /* Play view: setup card, game library, height-bound game stage, toolbar,
    live translation card, word popover, recent lines and the text-area
-   editor. Only design tokens are used, except inside the game stage, which
-   is always dark (the game picture sits on black in both themes). */
+   editor, and the phone layouts (html[data-handheld], set by the view while
+   EmulatorJS shows its on-screen pad). Only design tokens are used, except
+   inside the game stage, which is always dark (the game picture sits on
+   black in both themes). */
+
+/* The dark palette, colours only, for an always-dark island inside a light
+   page (the game screen of a phone held sideways). The same properties as
+   the light block in tokens.css, with the dark values from :root there
+   (tests/unit/ui-theme.test.js keeps the three in step). */
+.theme-dark {
+  color-scheme: dark;
+  color: var(--text);
+  --bg: #0b0f17;
+  --surface: #121826;
+  --surface-2: #182032;
+  --surface-3: #1f2940;
+  --surface-hover: #2a3550;
+  --border: #263049;
+  --border-control: #6b7a99;
+  --text: #e8edf6;
+  --text-muted: #a3aec4;
+  --accent: #4ade80;
+  --accent-solid: #22c55e;
+  --accent-solid-hover: #4ade80;
+  --on-accent: #052e16;
+  --accent-soft-bg: #0f2a1b;
+  --accent-soft-fg: #86efac;
+  --danger: #fca5a5;
+  --danger-solid: #dc2626;
+  --danger-solid-hover: #b91c1c;
+  --on-danger: #ffffff;
+  --danger-soft-bg: #3b1219;
+  --danger-soft-fg: #fca5a5;
+  --warning: #fbbf24;
+  --warning-soft-bg: #2e2206;
+  --warning-soft-fg: #fbbf24;
+  --info: #7dd3fc;
+  --info-soft-bg: #0c2a3d;
+  --info-soft-fg: #7dd3fc;
+  --neutral-soft-bg: #1f2940;
+  --neutral-soft-fg: #c3cbdb;
+  --focus: #93c5fd;
+  --overlay: rgb(3 6 12 / 0.66);
+  --skeleton: #1f2940;
+  --skeleton-shine: #2a3550;
+  --scrollbar: #33405e;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-3: 0 24px 48px rgb(0 0 0 / 0.45);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a3aec4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* (the light theme's own menu colour stays out of the island) */
+:root[data-theme='light'] .theme-dark .menu__list {
+  background: var(--surface-2);
+}
 
 /* ---- Header -------------------------------------------------------------- */
 
@@ -501,15 +555,26 @@ body.play-zone-editing .play[data-phase] .play__header {
 }
 
 /* The game has the keyboard: one clear ring around the whole stage. Without
-   :has() the ring goes inside the game screen instead (the stage clips). */
+   :has() the ring goes inside the game screen instead (the stage clips),
+   drawn over the game's own layers (an outline of #game would be painted
+   under its canvas). */
 .stage > #game:focus {
-  outline: 3px solid var(--focus);
-  outline-offset: -3px;
+  outline: none;
+}
+
+.stage > #game:focus::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  border: 3px solid var(--focus);
+  pointer-events: none;
 }
 
 @supports selector(:has(*)) {
-  .stage > #game:focus {
-    outline: none;
+  .stage > #game:focus::after {
+    display: none;
   }
 
   .stage:has(> #game:focus) {
@@ -548,6 +613,579 @@ body.play-zone-editing .play[data-phase] .play__header {
   body.play-zone-editing .stage--dock {
     --dock-h: 0px;
   }
+}
+
+/* ---- Phones: handheld layouts --------------------------------------------------------
+
+   html[data-handheld] is set by the Play view (index.js) while a game runs
+   with EmulatorJS's on-screen pad showing, the text-area editor is closed
+   and the system isn't N64:
+     portrait   phones and tablets under 960 px wide held upright: the
+                picture, the translation caption and the pad stacked in the
+                stage, the toolbar under it
+     landscape  phones held sideways (≤ 500 px tall): the game fills the
+                screen, black, with the pad in the side bars, the caption
+                under the picture and the toolbar in its corners
+   EmulatorJS's pad keys are only moved, never scaled: its touch handlers
+   read their boxes. Inline left/top need !important. The canvas is exactly
+   the picture (no transparent bars for the OCR, a smaller backing store). */
+
+/* The pad never eats touches meant for the canvas (NDS) or page scrolling. */
+:root[data-handheld] #game .ejs_virtualGamepad_parent,
+:root[data-handheld] #game .ejs_virtualGamepad_parent > div {
+  pointer-events: none;
+}
+
+:root[data-handheld] #game .ejs_virtualGamepad_parent > div > * {
+  pointer-events: auto;
+}
+
+/* The translation caption: a subtitle strip under the picture, always dark
+   (caption.js). Only the phone layouts show it. */
+.caption {
+  display: none;
+}
+
+:root[data-handheld] .stage--dock .caption {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+  color: #e8edf6;
+  line-height: 1.35;
+}
+
+.caption__tag {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid #3a4763;
+  border-radius: 4px;
+  color: #a3aec4;
+  font-size: 0.6875rem;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.caption__text {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--cap-lines, 2);
+  line-clamp: var(--cap-lines, 2);
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.caption:not([data-state='done']) .caption__text {
+  color: #a3aec4;
+  font-size: 0.875rem;
+}
+
+/* Not stretched over the strip: upright it sits just above the D-pad, and a
+   missed D-pad press must not jump the page. */
+.caption__open {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #a3aec4;
+}
+
+.caption__open:hover {
+  color: #e8edf6;
+}
+
+.caption__open:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: -3px;
+}
+
+/* ---- Upright: picture, caption strip (2 lines, 3 on tall screens), pad.
+   The dock is today's padding under the content-box stage, now the
+   caption plus the pad; rem sizes follow the reader's text size. */
+@media (orientation: portrait) {
+  :root[data-handheld='portrait'] .stage--dock {
+    --cap-lines: 2;
+    --cap-h: calc(var(--cap-lines) * 1.35 * 0.9375rem + 16px);
+    --pad-base: 190px;
+    --pad-h: calc(var(--pad-base) + var(--pad-extra, 0px));
+    --dock-h: calc(var(--cap-h) + var(--pad-h));
+    /* the D-pad and A/B side by side, plus margins */
+    --pad-min-w: max(296px, calc(var(--pad-l-w, 125px) + var(--pad-r-w, 131px) + 40px));
+    width: min(100%, max(var(--pad-min-w), calc(max(var(--stage-min-h), var(--stage-max-h)) * var(--game-ar))));
+  }
+
+  /* L and R get a row above the D-pad and A/B */
+  :root[data-handheld='portrait'] .stage--dock.stage--shoulders {
+    --pad-extra: 40px;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock > #game > .ejs_canvas_parent {
+    height: calc(100% - var(--dock-h));
+    overflow: hidden;
+  }
+
+  /* (a 1 px rule drawn inside, so the lines keep their full height) */
+  :root[data-handheld='portrait'] .stage--dock .caption {
+    right: 0;
+    bottom: var(--pad-h);
+    left: 0;
+    height: var(--cap-h);
+    padding: var(--space-2) var(--space-1) var(--space-2) var(--space-3);
+    background: #0b0f17;
+    box-shadow: inset 0 1px 0 #1f2940;
+    font-size: 0.9375rem;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_parent {
+    top: auto;
+    bottom: 0;
+    height: var(--pad-h);
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_left {
+    top: calc(var(--pad-extra, 0px) + 8px);
+    bottom: auto;
+    left: 12px;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_right {
+    top: calc(var(--pad-extra, 0px) + 8px);
+    right: 8px;
+    bottom: auto;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    margin: 0;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom > .ejs_virtualGamepad_button {
+    top: 0 !important;
+    width: 56px;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom > .b_select { left: calc(50% - 60px) !important; }
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom > .b_start { left: calc(50% + 4px) !important; }
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom > .b_speed_fast { left: 0 !important; }
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom > .b_speed_slow { right: 0 !important; left: auto !important; }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_left > .b_l {
+    top: -40px !important;
+    left: 0 !important;
+    width: 64px;
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_right > .b_r {
+    top: -40px !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 64px;
+  }
+
+  /* The stage alone in fullscreen (it went fullscreen outside the phone
+     layout, see .game:fullscreen below): the same stack inside the safe
+     areas, the picture above the caption and the pad, never under them */
+  :root[data-handheld='portrait'] .stage--dock:fullscreen > #game {
+    inset: var(--safe-top) 0 var(--safe-bottom);
+    height: auto;
+  }
+}
+
+@media (orientation: portrait) and (min-height: 820px) {
+  :root[data-handheld='portrait'] .stage--dock {
+    --cap-lines: 3;
+  }
+}
+
+@media (orientation: portrait) and (max-height: 719.98px) {
+  :root[data-handheld='portrait'] .stage--dock {
+    --pad-base: 178px;
+  }
+}
+
+/* Phones upright: less chrome around the game (8 px above it, then the
+   12 px gap, the 54 px toolbar and a 16 px margin) */
+@media (orientation: portrait) and (max-width: 599.98px) {
+  :root[data-handheld='portrait'] .play {
+    padding-top: var(--space-2);
+  }
+
+  :root[data-handheld='portrait'] .play .stage {
+    --play-chrome: 90px;
+  }
+}
+
+/* Short phones upright: the header scrolls away (layout.css) and the page
+   snaps to the game, then to the translation. (After the block above: same
+   specificity, the short-phone values win.) */
+@media (orientation: portrait) and (max-height: 719.98px) {
+  :root[data-handheld='portrait'] .stage--dock #game :is(.ejs_virtualGamepad_left, .ejs_virtualGamepad_right) {
+    top: calc(var(--pad-extra, 0px) + 4px);
+  }
+
+  :root[data-handheld='portrait'] .stage--dock #game .ejs_virtualGamepad_bottom {
+    bottom: 8px;
+  }
+
+  :root[data-handheld='portrait'] .play .stage {
+    --play-chrome: calc(90px - var(--header-h) - var(--safe-top));
+  }
+
+  :root[data-handheld='portrait'] .play .game {
+    scroll-margin-top: var(--space-2);
+    scroll-snap-align: start;
+  }
+
+  :root[data-handheld='portrait'] .play .live {
+    scroll-snap-align: start;
+  }
+}
+
+/* Under 600 px tall the pad's bottom row sits just above the tab bar: keep
+   8 px between them (a Start press that lands low must not leave the game).
+   The ring around the focused game still fits above the stage. */
+@media (orientation: portrait) and (max-height: 599.98px) {
+  :root[data-handheld='portrait'] .stage--dock {
+    --pad-base: 174px;
+  }
+
+  :root[data-handheld='portrait'] .play .game {
+    scroll-margin-top: 6px;
+  }
+}
+
+/* Narrow phones (or a large default text size): the language tag gives its
+   width to the caption's text */
+@media (orientation: portrait) and (max-width: 24em) {
+  :root[data-handheld='portrait'] .stage .caption__tag {
+    display: none;
+  }
+}
+
+/* "Resume where you left off?" floats over the top of the picture until
+   answered, upright too: as a row of its own it pushed the toolbar (and on
+   short phones the question itself) under the tab bar */
+:root[data-handheld='portrait'] .play .game {
+  position: relative;
+}
+
+:root[data-handheld='portrait'] .play .stage {
+  --resume-h: 0px;
+}
+
+:root[data-handheld='portrait'] .play .resume {
+  position: absolute;
+  z-index: 6;
+  top: var(--space-2);
+  right: 0;
+  left: 0;
+  width: calc(var(--stage-w, 100%) - 2 * var(--space-2));
+  max-width: calc(100% - 2 * var(--space-2));
+  margin-inline: auto;
+  box-shadow: var(--shadow-3);
+}
+
+/* The toolbar lines up with the stage (it is as wide as the picture on
+   short phones too; the toolbar's steps keep it on one row) */
+:root[data-handheld='portrait'] .play-controls {
+  width: var(--stage-w, 100%);
+}
+
+/* Fullscreen on a phone is the game section: the stage with its toolbar
+   (index.js), on black, without the page around it. Upright the windowed
+   stack is centred (its sizes come from the screen: no header, no tab bar);
+   sideways it is the same full-screen game. */
+:root[data-handheld] .play .game:fullscreen {
+  --header-h: 0px;
+  --bottom-nav-h: 0px;
+  background: #000;
+}
+
+:root[data-handheld='portrait'] .play .game:fullscreen {
+  justify-content: center;
+  justify-content: safe center;
+  box-sizing: border-box;
+  padding: var(--safe-top) 0 var(--safe-bottom);
+  overflow-y: auto;
+}
+
+:root[data-handheld='portrait'] .play .game:fullscreen .stage {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root[data-handheld='portrait'] .play .game:fullscreen .play-controls {
+  max-width: calc(100% - 2 * var(--space-2));
+}
+
+:root[data-handheld='portrait'] .play .game:fullscreen .resume {
+  top: calc(var(--safe-top) + var(--space-2));
+}
+
+/* ---- Sideways: a full-screen game. The picture is as tall as the screen
+   allows with bars of at least --bar-min (150 px, or the measured pad
+   cluster + 20) beside it, bottom-aligned on a caption row of two lines;
+   any height to spare goes above it. The header is one swipe up, the cards
+   one swipe down. */
+:root[data-handheld='landscape'] .play {
+  --cap-h: max(52px, calc(2.7rem + 8px));
+  --stage-h: calc(100dvh - var(--safe-top) - var(--safe-bottom));
+  --bar-min: max(150px, calc(var(--pad-l-w, 130px) + 20px), calc(var(--pad-r-w, 130px) + 20px));
+  --safe-x: max(var(--safe-left), var(--safe-right));
+  --pic-h: min(var(--stage-h) - var(--cap-h), (100vw - 2 * (var(--bar-min) + var(--safe-x))) / var(--game-ar, 1.1111));
+  --pic-w: calc(var(--pic-h) * var(--game-ar, 1.1111));
+  --bar-w: calc((100vw - var(--pic-w)) / 2);
+  /* centre of the usable left bar; distance of the right bar's centre from the right edge */
+  --bar-cx-l: calc((var(--bar-w) + var(--safe-left)) / 2);
+  --bar-cx-r: calc((var(--bar-w) + var(--safe-right)) / 2);
+  padding-top: 0;
+}
+
+:root[data-handheld='landscape'] .play__header,
+:root[data-handheld='landscape'] .play .key-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root[data-handheld='landscape'] .play-layout {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* "Skip to live translation" floats over the top of the game screen: as a
+   row of its own it pushed the game half off the screen */
+:root[data-handheld='landscape'] .play-skip:focus {
+  position: absolute;
+  z-index: 8;
+  top: calc(var(--safe-top) + var(--space-2));
+  left: max(var(--space-2), var(--safe-left));
+}
+
+:root[data-handheld='landscape'] .play-side {
+  position: static;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+:root[data-handheld='landscape'] .play .game {
+  position: relative;
+  display: grid;
+  grid-template-areas: 'shell';
+  box-sizing: border-box;
+  gap: 0;
+  height: 100dvh;
+  margin-inline: calc(-1 * max(var(--gutter), var(--safe-left))) calc(-1 * max(var(--gutter), var(--safe-right)));
+  padding-block: var(--safe-top) var(--safe-bottom);
+  background: #000;
+  scroll-margin-top: 0;
+  scroll-snap-align: start;
+}
+
+:root[data-handheld='landscape'] .play .live {
+  scroll-snap-align: start;
+}
+
+:root[data-handheld='landscape'] .play .stage {
+  grid-area: shell;
+  width: 100%;
+  height: var(--stage-h);
+  padding: 0;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The ring around the game stays on screen (the stage touches its edges):
+   the inside ring, over the game's own layers (an inset outline on the
+   stage would be painted under the black #game and its canvas). */
+:root[data-handheld='landscape'] .stage:has(> #game:focus) {
+  outline: none;
+}
+
+:root[data-handheld='landscape'] .stage > #game:focus::after {
+  display: block;
+}
+
+:root[data-handheld='landscape'] .stage > #game > .ejs_canvas_parent {
+  position: absolute;
+  bottom: var(--cap-h);
+  left: var(--bar-w);
+  width: var(--pic-w);
+  height: var(--pic-h);
+  overflow: hidden;
+}
+
+:root[data-handheld='landscape'] .stage .caption {
+  bottom: 0;
+  left: var(--bar-w);
+  width: var(--pic-w);
+  height: var(--cap-h);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  background: transparent;
+  font-size: 1rem;
+  --cap-lines: 2;
+}
+
+/* (the width goes to the text sideways) */
+:root[data-handheld='landscape'] .stage .caption__tag {
+  display: none;
+}
+
+:root[data-handheld='landscape'] .stage .zone-overlay {
+  top: auto;
+  right: auto;
+  bottom: var(--cap-h);
+  left: var(--bar-w);
+  width: var(--pic-w);
+  height: var(--pic-h);
+}
+
+/* The pad: the D-pad centred in the left bar and A/B in the right one (on
+   the measured clusters), their bottoms 52 px above the caption row;
+   Select/Start under the D-pad, Fast/Slow under A/B; L/R in the top outer
+   corners. */
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_parent {
+  top: 0;
+  bottom: 0;
+  height: auto;
+}
+
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_left {
+  top: auto;
+  bottom: calc(var(--cap-h) + 52px);
+  left: calc(var(--bar-cx-l) - 62.5px - var(--pad-l-shift, 0px));
+}
+
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_right {
+  top: auto;
+  right: calc(var(--bar-cx-r) - 65px + var(--pad-r-shift, 0px));
+  bottom: calc(var(--cap-h) + 52px);
+}
+
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_bottom {
+  right: 0;
+  bottom: calc(var(--cap-h) + 8px);
+  left: 0;
+  width: auto;
+  margin: 0;
+}
+
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_bottom > .ejs_virtualGamepad_button {
+  top: 0 !important;
+  width: 60px;
+}
+
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_bottom > .b_select { left: calc(var(--bar-cx-l) - 64px) !important; }
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_bottom > .b_start { left: calc(var(--bar-cx-l) + 4px) !important; }
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_bottom > .b_speed_fast { right: calc(var(--bar-cx-r) + 4px) !important; left: auto !important; }
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_bottom > .b_speed_slow { right: calc(var(--bar-cx-r) - 64px) !important; left: auto !important; }
+
+/* L/R 12 px from the top and the outer edge (the zones' tops are
+   stage-h - cap-h - 177 and - 182) */
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_left > .b_l {
+  top: calc(189px + var(--cap-h) - var(--stage-h)) !important;
+  left: calc(var(--safe-left) + 74.5px - var(--bar-cx-l) + var(--pad-l-shift, 0px)) !important;
+  width: 64px;
+}
+
+:root[data-handheld='landscape'] #game .ejs_virtualGamepad_right > .b_r {
+  top: calc(194px + var(--cap-h) - var(--stage-h)) !important;
+  right: calc(var(--safe-right) + 77px - var(--bar-cx-r) - var(--pad-r-shift, 0px)) !important;
+  left: auto !important;
+  width: 64px;
+}
+
+/* The toolbar: four buttons in the caption row's corners (toolbar.js
+   setCorners: Translate now and Pause left, Auto-translate and More right) */
+:root[data-handheld='landscape'] .play-controls {
+  position: static;
+  z-index: 4;
+  grid-area: shell;
+  align-self: end;
+  width: 100%;
+  max-width: none;
+  height: var(--cap-h);
+  pointer-events: none;
+}
+
+/* (.play-toolbar comes later in this file: the pair outranks it) */
+.play-toolbar.play-toolbar--corners {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1);
+  height: 100%;
+  padding: 0 calc(var(--safe-right) + 8px) 0 calc(var(--safe-left) + 8px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.play-toolbar--corners > :is(.tb-sep, .tb-spacer) {
+  display: none;
+}
+
+.play-toolbar--corners > .tb-group {
+  pointer-events: auto;
+}
+
+.play-toolbar--corners > .tb-group--end {
+  margin-inline-start: auto;
+}
+
+/* More opens upwards and scrolls: it never runs off the screen */
+.play-toolbar--corners .menu__list {
+  top: auto;
+  bottom: calc(100% + 6px);
+  max-height: calc(var(--stage-h) - var(--cap-h) - 8px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* "Resume where you left off?" floats over the top of the picture until answered */
+:root[data-handheld='landscape'] .play .resume {
+  position: absolute;
+  z-index: 6;
+  top: calc(var(--safe-top) + 8px);
+  left: calc(var(--bar-w) + 8px);
+  width: calc(var(--pic-w) - 16px);
+  box-shadow: var(--shadow-3);
+  pointer-events: auto;
+}
+
+/* fullscreen sideways: the same geometry, inside the safe areas */
+:root[data-handheld='landscape'] .stage:fullscreen > #game {
+  inset: var(--safe-top) 0 var(--safe-bottom);
+  height: auto;
+}
+
+:root[data-handheld='landscape'] .stage:fullscreen .caption {
+  bottom: var(--safe-bottom);
 }
 
 @media (max-width: 767.98px) {
@@ -796,6 +1434,32 @@ body.play-zone-editing .play-controls {
   .play-toolbar:not(.play-toolbar--compact) .tb--labelled[data-tooltip]::after {
     display: none;
   }
+}
+
+/* The last steps for a narrow toolbar (toolbar.js): Translate now drops its
+   icon, then shows only the icon (its label stays the name). While busy the
+   hidden label says "Reading…" and the spinner shows. */
+.play-toolbar--no-main-icon:not(.play-toolbar--icons) .tb--main > .icon {
+  display: none;
+}
+
+.play-toolbar--icons .tb--main {
+  width: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
+.play-toolbar--icons .tb--main .tb__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.play-toolbar--icons .tb--main .tb__kbd {
+  display: none;
 }
 
 @media (max-width: 599.98px) {
@@ -1530,6 +2194,14 @@ body.play-zone-editing .ejs_virtualGamepad_parent {
   .part__trans,
   .wordpop__trans {
     border-inline-start-color: CanvasText;
+  }
+
+  .caption {
+    border: 1px solid CanvasText;
+  }
+
+  .caption__open {
+    color: ButtonText;
   }
 }
 

@@ -280,6 +280,25 @@ describe('installEmulatorFocusRelease', () => {
     expect(document.activeElement.id).toBe('first');
   });
 
+  it('Tab meets a control between the game and the toolbar first, as Shift+Tab does', () => {
+    document.body.innerHTML = `
+      <a id="skip" href="#live">Skip</a>
+      <div id="stage"><div id="game" tabindex="0"><canvas></canvas><button id="ejs-pause">Pause</button></div>
+        <div class="caption"><button id="caption">Open Live translation</button></div></div>
+      <div id="tb"><button id="first">Translate now</button><button id="last">More</button></div>`;
+    const game = document.getElementById('game');
+    off = installEmulatorFocusRelease({ gameEl: game, toolbarEl: document.getElementById('tb') });
+    game.focus();
+    const e = key(game, 'Tab');
+    expect(document.activeElement.id).toBe('caption');
+    expect(e.defaultPrevented).toBe(true);
+    // a hidden caption (desktop) is skipped: the toolbar comes next
+    document.querySelector('.caption').hidden = true;
+    game.focus();
+    key(game, 'Tab');
+    expect(document.activeElement.id).toBe('first');
+  });
+
   it('Escape calls onEscape (default: first toolbar control)', () => {
     const game = document.getElementById('game');
     const onEscape = vi.fn();

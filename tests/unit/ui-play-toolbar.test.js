@@ -109,6 +109,46 @@ describe('toolbar', () => {
     expect(b.querySelector('[data-label]').textContent).toBe('Translate now');
   });
 
+  it('keeps Text area in More for narrow toolbars, and names both copies', () => {
+    const item = el.querySelector('#play-more-zone');
+    expect(item.getAttribute('role')).toBe('menuitem');
+    expect(item.hidden).toBe(true);
+    tb.setZone({ open: false, custom: true });
+    expect(el.querySelector('.tb[data-action="zone"]').getAttribute('aria-label')).toBe('Text area (custom)');
+    expect(item.textContent).toBe('Text area (custom)');
+    tb.setZone({ open: false, custom: false });
+    expect(item.textContent).toBe('Text area');
+  });
+
+  it('keeps four buttons in the corners of a phone held sideways, the rest in More', () => {
+    const btn = (a) => el.querySelector(`.tb[data-action="${a}"]`);
+    const item = (a) => el.querySelector(`#play-more-${a}`);
+    const moved = ['mute', 'fullscreen', 'quick-save', 'quick-load', 'zone'];
+    tb.setCorners(true);
+    expect(el.classList.contains('play-toolbar--corners')).toBe(true);
+    expect(el.classList.contains('play-toolbar--icons')).toBe(true);
+    for (const a of moved) {
+      expect(btn(a).hidden).toBe(true);
+      expect(item(a).hidden).toBe(false);
+    }
+    for (const a of ['translate-now', 'pause', 'auto-translate']) expect(btn(a).hidden).toBe(false);
+    // icon only, still named "Translate now" (its label, no aria-label)
+    const main = btn('translate-now');
+    expect(main.hasAttribute('aria-label')).toBe(false);
+    expect(main.querySelector('[data-label]').textContent).toBe('Translate now');
+    expect(main.querySelector('[data-label]').hasAttribute('aria-hidden')).toBe(false);
+    // Auto-translate starts the right-hand corner
+    expect(btn('auto-translate').closest('.tb-group').classList.contains('tb-group--end')).toBe(true);
+    tb.setCorners(false);
+    expect(el.classList.contains('play-toolbar--corners')).toBe(false);
+    expect(el.classList.contains('play-toolbar--icons')).toBe(false);
+    expect(el.classList.contains('play-toolbar--compact')).toBe(false);
+    for (const a of moved) {
+      expect(btn(a).hidden).toBe(false);
+      expect(item(a).hidden).toBe(true);
+    }
+  });
+
   it('shows when the quick save was made', () => {
     tb.setSavedAt(Date.now() - 120000);
     expect(el.querySelector('.tb[data-action="quick-save"]').dataset.tooltip).toBe('Quick save · last saved 2 minutes ago');
@@ -121,7 +161,7 @@ describe('stage', () => {
   let calls;
 
   beforeEach(() => {
-    document.body.innerHTML = '<div class="stage" data-stage><div id="game"></div><div data-stage-overlay hidden></div></div>';
+    document.body.innerHTML = '<div class="play"><div class="stage" data-stage><div id="game"></div><div data-stage-overlay hidden></div></div></div>';
     stageEl = document.querySelector('.stage');
     calls = [];
     stage = createStage(stageEl, { onRetry: () => calls.push('retry'), onChooseAnother: () => calls.push('choose') });
@@ -134,6 +174,35 @@ describe('stage', () => {
     expect(aspectOf(null, 4 / 3)).toBeCloseTo(4 / 3, 5);
     stage.setAspect(1.5);
     expect(stageEl.style.getPropertyValue('--game-ar')).toBe('1.5');
+  });
+
+  it('shares the aspect ratio with the page (the landscape phone layout sizes the picture there)', () => {
+    stage.setAspect(1.5);
+    expect(stageEl.style.getPropertyValue('--game-ar')).toBe('1.5');
+    expect(document.querySelector('.play').style.getPropertyValue('--game-ar')).toBe('1.5');
+  });
+
+  it('records the pad’s clusters and whether it has L/R', () => {
+    const play = document.querySelector('.play');
+    stage.setPadMetrics({ left: { width: 125, shift: 0 }, right: { width: 195, shift: -32 }, shoulders: true });
+    expect(play.style.getPropertyValue('--pad-l-w')).toBe('125px');
+    expect(play.style.getPropertyValue('--pad-l-shift')).toBe('0px');
+    expect(play.style.getPropertyValue('--pad-r-w')).toBe('195px');
+    expect(play.style.getPropertyValue('--pad-r-shift')).toBe('-32px');
+    expect(stageEl.classList.contains('stage--shoulders')).toBe(true);
+    stage.setPadMetrics({ left: null, right: { width: 131, shift: 1 }, shoulders: false });
+    expect(play.style.getPropertyValue('--pad-l-w')).toBe('');
+    expect(play.style.getPropertyValue('--pad-r-w')).toBe('131px');
+    expect(stageEl.classList.contains('stage--shoulders')).toBe(false);
+  });
+
+  it('says whether the on-screen pad is docked', () => {
+    expect(stage.docked()).toBe(false);
+    stage.setTouchDock(true);
+    expect(stage.docked()).toBe(true);
+    expect(stageEl.classList.contains('stage--dock')).toBe(true);
+    stage.setTouchDock(false);
+    expect(stage.docked()).toBe(false);
   });
 
   it('shows loading with progress, then running', () => {

@@ -462,20 +462,52 @@ function openMenu(trigger, focus = 'first') {
   closeAllMenus(trigger);
   list.hidden = false;
   trigger.setAttribute('aria-expanded', 'true');
-  // Keep the menu on screen: open upwards when there is no room below, and
-  // flip its horizontal alignment when it would run off either edge.
-  list.classList.remove('menu__list--up');
+  // Keep the menu on screen: flip its horizontal alignment when it would run
+  // off either edge, and fit it vertically.
+  list.classList.remove('menu__list--up', 'menu__list--scroll');
+  list.style.removeProperty('max-height');
+  // (measured without its opening animation, which scales it)
+  list.style.animation = 'none';
   const startAligned = list.dataset.align === 'start';
   list.classList.toggle('menu__list--start', startAligned);
-  let r = list.getBoundingClientRect();
-  if (r.width && (r.left < 8 || r.right > window.innerWidth - 8)) {
-    list.classList.toggle('menu__list--start', !startAligned);
-    r = list.getBoundingClientRect();
-  }
-  if (r.bottom > window.innerHeight - 8 && r.top - r.height > 8) list.classList.add('menu__list--up');
+  const r = list.getBoundingClientRect();
+  if (r.width && (r.left < 8 || r.right > window.innerWidth - 8)) list.classList.toggle('menu__list--start', !startAligned);
+  fitMenu(list, trigger);
+  list.style.removeProperty('animation');
   const items = menuItems(list);
   const target = focus === 'last' ? items[items.length - 1] : items[0];
   if (target) target.focus();
+}
+
+// Vertically the menu stays clear of what covers the page's edges (the
+// sticky header, the tab bar, toasts: the page's scroll padding, base.css).
+// It opens downwards when it fits there, else upwards when it fits there,
+// else towards the side with more room, scrolling within it.
+function fitMenu(list, trigger) {
+  const pad = getComputedStyle(document.documentElement);
+  const top = Math.max(8, parseFloat(pad.scrollPaddingTop) || 0);
+  const bottom = window.innerHeight - Math.max(8, parseFloat(pad.scrollPaddingBottom) || 0);
+  const r = list.getBoundingClientRect();
+  if (!r.height || (r.top >= top && r.bottom <= bottom)) return;
+  const t = trigger.getBoundingClientRect();
+  const gap = 6;
+  const below = bottom - t.bottom - gap;
+  const above = t.top - gap - top;
+  const up = r.height > below && (r.height <= above || above > below);
+  list.classList.toggle('menu__list--up', up);
+  const room = Math.floor(up ? above : below);
+  if (r.height <= room) return;
+  list.style.maxHeight = `${Math.max(room, 96)}px`;
+  list.classList.add('menu__list--scroll');
+}
+
+// One item of an open menu is in the tab order: the one with focus (a
+// roving tabindex). Arrow keys move it; Tab closes the menu (onKeydown).
+function onMenuFocusIn(e) {
+  const item = e.target instanceof Element ? e.target.closest('[role="menuitem"]') : null;
+  const list = item && item.closest('[role="menu"]');
+  if (!list) return;
+  for (const el of list.querySelectorAll('[role="menuitem"]')) el.tabIndex = el === item ? 0 : -1;
 }
 
 function closeMenu(trigger, { returnFocus = false } = {}) {
@@ -629,6 +661,7 @@ export function ensureBehaviors() {
   // Capture phase: a menu inside a dialog must handle Escape before the dialog does.
   document.addEventListener('keydown', onKeydown, true);
   document.addEventListener('focusout', onFocusOut);
+  document.addEventListener('focusin', onMenuFocusIn);
   document.addEventListener('pointerdown', onPointerDown, true);
   document.addEventListener('pointerup', onPointerUp, true);
   document.addEventListener('pointercancel', onPointerUp, true);

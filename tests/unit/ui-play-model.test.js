@@ -2,7 +2,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   wordTokens, rovingTarget, captureParts, diffCapture, isLowConfidence, captureSummary, sameCaptureText,
-  createSentenceTracker, isCardWorthy, speechDelta, keyHintText, keyLabel, statusView
+  createSentenceTracker, isCardWorthy, speechDelta, keyHintText, keyLabel, statusView,
+  handheldMode, captionView, padClusterMetrics
 } from '../../src/ui/views/play/model.js';
 
 const cap = (over = {}) => ({
@@ -207,5 +208,110 @@ describe('statusView', () => {
     expect(statusView({ state: 'error', message: 'Couldn’t read', detail: 'boom' })).toMatchObject({ label: 'Error', detail: 'boom' });
     expect(statusView(null).state).toBe('off');
     expect(statusView({ state: 'weird' }).state).toBe('off');
+  });
+});
+
+describe('handheldMode', () => {
+  const base = { visible: true, phase: 'running', docked: true, zoneOpen: false, system: 'gb', landscape: false, portrait: true };
+
+  it('is the orientation while a docked game runs', () => {
+    expect(handheldMode(base)).toBe('portrait');
+    expect(handheldMode({ ...base, landscape: true, portrait: false })).toBe('landscape');
+    // (a matchMedia quirk: landscape wins)
+    expect(handheldMode({ ...base, landscape: true, portrait: true })).toBe('landscape');
+  });
+
+  it('is off whenever one condition fails', () => {
+    expect(handheldMode({ ...base, visible: false })).toBe(null);
+    for (const phase of ['idle', 'loading', 'error']) expect(handheldMode({ ...base, phase })).toBe(null);
+    expect(handheldMode({ ...base, docked: false })).toBe(null);
+    expect(handheldMode({ ...base, zoneOpen: true })).toBe(null);
+    expect(handheldMode({ ...base, system: 'n64', landscape: true })).toBe(null);
+    expect(handheldMode({ ...base, portrait: false })).toBe(null);
+    expect(handheldMode()).toBe(null);
+  });
+});
+
+describe('captionView', () => {
+  const other = (key, translation, status = 'done') => ({ key, kind: 'menu', text: `T${key}`, translation, status });
+
+  it('shows the dialog translation, trimmed, in the target language', () => {
+    expect(captionView(cap({ dialog: { text: 'Hallo!', translation: '  Hello!  ', status: 'done' } }))).toEqual({ state: 'done', text: 'Hello!', lang: 'en' });
+  });
+
+  it('keeps showing a translation that is being updated', () => {
+    const v = captionView(cap({ dialog: { text: 'Hallo! Willkommen', translation: 'Hello!', status: 'translating' } }));
+    expect(v).toEqual({ state: 'done', text: 'Hello!', lang: 'en' });
+  });
+
+  it('says it is translating while no translation is there yet', () => {
+    expect(captionView(cap())).toEqual({ state: 'pending', text: 'Translating…', lang: null });
+    expect(captionView(cap({ dialog: { text: 'x', translation: '', status: 'translating' } })).state).toBe('pending');
+  });
+
+  it('reports a failed line, including one that came back empty', () => {
+    expect(captionView(cap({ dialog: { text: 'x', translation: '', status: 'error' } }))).toEqual({ state: 'error', text: 'Couldn’t translate this line.', lang: null });
+    expect(captionView(cap({ dialog: { text: 'x', translation: '', status: 'done' } })).state).toBe('error');
+  });
+
+  it('joins up to three translated menus or labels when there is no dialog', () => {
+    expect(captionView(cap({ dialog: null, others: [other(1, 'FIGHT')] })).text).toBe('FIGHT');
+    expect(captionView(cap({ dialog: null, others: [other(1, 'FIGHT'), other(2, 'BAG'), other(3, 'RUN')] })).text).toBe('FIGHT · BAG · RUN');
+    const five = captionView(cap({ dialog: null, others: [1, 2, 3, 4, 5].map((k) => other(k, `M${k}`)) }));
+    expect(five).toEqual({ state: 'done', text: 'M1 · M2 · M3', lang: 'en' });
+    // a menu's lines read as one line
+    expect(captionView(cap({ dialog: null, others: [other(1, 'FIGHT\nBAG')] })).text).toBe('FIGHT · BAG');
+  });
+
+  it('skips menus still being translated, and waits when none is done', () => {
+    expect(captionView(cap({ dialog: null, others: [other(1, '', 'pending'), other(2, 'BAG')] })).text).toBe('BAG');
+    expect(captionView(cap({ dialog: null, others: [other(1, '', 'pending')] })).state).toBe('pending');
+    expect(captionView(cap({ dialog: null, others: [other(1, '', 'error')] })).state).toBe('error');
+  });
+
+  it('explains the scanner state when there is no line yet', () => {
+    expect(captionView(null, { status: { state: 'setup', progress: 0.2 } })).toEqual({ state: 'empty', text: 'Getting text recognition ready…', lang: null });
+    expect(captionView(null, { status: { state: 'paused', message: 'Paused while you edit the text area.' } }).text).toBe('Paused while you edit the text area.');
+    expect(captionView(null, { status: { state: 'paused' } }).text).toBe('Auto-translate is off. Use Translate now to read the screen.');
+    expect(captionView(null, { status: { state: 'error', message: 'No connection.' } }).text).toBe('No connection.');
+    expect(captionView(null, { status: { state: 'error' } }).text).toBe('Live translation isn’t available right now.');
+    expect(captionView(null, { status: { state: 'watching' } })).toEqual({ state: 'empty', text: 'Translations of the game’s text appear here.', lang: null });
+    expect(captionView(null).state).toBe('empty');
+  });
+
+  it('names the language only for a translation', () => {
+    const states = [cap(), cap({ dialog: { text: 'x', translation: '', status: 'error' } }), null];
+    for (const c of states) expect(captionView(c, { status: { state: 'watching' } }).lang).toBe(null);
+    expect(captionView(cap({ tgt: 'ja', dialog: { text: 'x', translation: 'こんにちは', status: 'done' } })).lang).toBe('ja');
+  });
+
+  it('shows nothing of a game that is not running', () => {
+    expect(captionView(cap({ dialog: { text: 'x', translation: 'y', status: 'done' } }), { phase: 'loading' }).state).toBe('empty');
+  });
+});
+
+describe('padClusterMetrics', () => {
+  const box = (left, right, top = 0, bottom = 50) => ({ left, right, top, bottom, width: right - left, height: bottom - top });
+
+  it('is the zone itself for a D-pad that fills it', () => {
+    expect(padClusterMetrics(box(10, 135), [box(10, 135)])).toEqual({ width: 125, shift: 0 });
+  });
+
+  it('measures Game Boy A and B by the keys, right of the empty strip in their zone', () => {
+    // (the keys' centre goes to the bar's centre, not the zone's)
+    expect(padClusterMetrics(box(0, 130), [box(10, 60), box(81, 131)])).toEqual({ width: 121, shift: 6 });
+  });
+
+  it('follows Mega Drive’s six buttons far to the left of their zone', () => {
+    expect(padClusterMetrics(box(0, 130), [box(-65, -15), box(-5, 45), box(75, 125)])).toEqual({ width: 190, shift: -35 });
+  });
+
+  it('is the zone when it has no keys', () => {
+    expect(padClusterMetrics(box(0, 130), [])).toEqual({ width: 130, shift: 0 });
+  });
+
+  it('accepts DOMRect-like { x, width } boxes', () => {
+    expect(padClusterMetrics({ x: 0, width: 130 }, [{ x: -65, width: 50 }, { x: 75, width: 50 }])).toEqual({ width: 190, shift: -35 });
+    expect(padClusterMetrics(null)).toBe(null);
   });
 });

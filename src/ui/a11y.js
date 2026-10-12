@@ -369,9 +369,10 @@ function ejsPopupOpen(gameEl) {
 /**
  * EmulatorJS focuses #game and calls preventDefault on every key, which traps
  * keyboard users. This capture-phase handler runs first:
- *  - Tab inside #game → the toolbar's first control; Shift+Tab → the control
- *    before #game (else the toolbar's last), skipping EmulatorJS's hidden
- *    in-frame buttons
+ *  - Tab inside #game → the control just after #game when it comes before
+ *    the toolbar (a caption under the game), else the toolbar's first;
+ *    Shift+Tab → the control before #game (else the toolbar's last),
+ *    skipping EmulatorJS's hidden in-frame buttons
  *  - Escape → onEscape() (default: first toolbar control), unless an
  *    EmulatorJS popup is open
  *  - Enter, Space and arrows on EmulatorJS's own controls reach them natively
@@ -403,6 +404,19 @@ export function installEmulatorFocusRelease({ gameEl, toolbarEl, onEscape } = {}
     return !!prev;
   };
 
+  // Tab leaves forwards in document order too: a control between #game and
+  // the toolbar (the translation caption on phones) comes first, so Tab and
+  // Shift+Tab meet the same controls. A toolbar placed before the game keeps
+  // getting Tab.
+  const toAfter = () => {
+    const first = focusableIn(toolbarEl)[0] || null;
+    const after = focusableIn(document.body).filter((el) => !gameEl.contains(el) && !el.contains(gameEl) &&
+      !!(gameEl.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const el = first && !after.includes(first) ? first : after[0] || first;
+    if (el) el.focus();
+    return !!el;
+  };
+
   const onKey = (e) => {
     if (e.type === 'keydown' && e.key === 'Tab') lastTabAt = Date.now();
     const t = e.target;
@@ -410,7 +424,7 @@ export function installEmulatorFocusRelease({ gameEl, toolbarEl, onEscape } = {}
 
     if (e.key === 'Tab') {
       e.stopPropagation();
-      if (e.type === 'keydown' && ((e.shiftKey && toBefore()) || toToolbar(e.shiftKey))) e.preventDefault();
+      if (e.type === 'keydown' && ((e.shiftKey ? toBefore() : toAfter()) || toToolbar(e.shiftKey))) e.preventDefault();
       return;
     }
     if (e.key === 'Escape' || e.key === 'Esc') {

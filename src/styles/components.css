@@ -1145,6 +1145,16 @@
 .menu__list--start { inset-inline: 0 auto; }
 .menu__list--up { top: auto; bottom: calc(100% + 6px); }
 
+/* Taller than the room on either side: it scrolls (components.js fitMenu) */
+.menu__list--scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.menu__list > * {
+  flex-shrink: 0;
+}
+
 .menu__item {
   display: flex;
   align-items: center;

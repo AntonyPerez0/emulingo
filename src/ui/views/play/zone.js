@@ -350,9 +350,13 @@ export function createZoneEditor({ overlayEl, panelEl, onOpen = () => {}, onClos
     onOpen();
     const target = overlayEl.querySelector('[data-zone-rect]');
     if (target) target.focus({ preventScroll: true });
-    // the fields and buttons sit under the game: bring them into view
+    // the fields and buttons sit under the game: bring them into view, but
+    // never at the cost of the picture with the focused area on it (a short
+    // screen can't show both: the area comes first, the fields scroll)
     requestAnimationFrame(() => {
-      if (open && typeof panelEl.scrollIntoView === 'function') panelEl.scrollIntoView({ block: 'nearest' });
+      if (!open || typeof panelEl.scrollIntoView !== 'function') return;
+      panelEl.scrollIntoView({ block: 'nearest' });
+      overlayEl.scrollIntoView({ block: 'nearest' });
     });
   }
 

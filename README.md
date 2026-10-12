@@ -20,6 +20,7 @@ Everything except translation happens on your device: the emulator, the text rec
 ## Features
 
 - **Built-in emulator** – [EmulatorJS](https://emulatorjs.org) 4.2.3, with keyboard and gamepad support and a touch gamepad on phones and tablets.
+- **Made for phones** – held upright, the touch controls sit under the game with the translation as a caption between them; held sideways, the game fills the screen with the controls beside it and the caption under it. The controls never cover the game’s text, and the caption’s arrow opens the full Live translation card.
 - **Your game library** – ROM files stay in your browser’s storage. ZIP archives are unpacked on import, and the same game is never stored twice.
 - **Saves that last** – in-game saves (a Pokémon game’s own Save menu) are kept safe across sessions, plus a quick-save slot and an autosave that offers “Resume where you left off?” the next time you play.
 - **Live translation** – Emulingo watches the screen and reads dialogue boxes, menus and battle text as they appear. Dialogue that runs over several boxes is joined into whole sentences before it is translated.
@@ -211,7 +212,7 @@ The suites drive headless Chromium with [Playwright](https://playwright.dev) (ru
 | `e2e:emu` | Emulator integration: starting games, in-game saves, quick save and load, autosave, ROM import |
 | `e2e:capture` | Pixel-exact frame capture at different sizes and pixel densities |
 | `e2e:engine` | The OCR engine in its worker, the Classic fallback, main-thread blocking |
-| `e2e:learn`, `e2e:settings`, `e2e:play` | The views: accessibility scans, keyboard walkthroughs, screenshots |
+| `e2e:learn`, `e2e:settings`, `e2e:play` | The views: accessibility scans, keyboard walkthroughs, screenshots; `e2e:play` also checks the phone layouts (the touch controls never over the picture or the caption, at every common phone size held either way, rotation, safe areas, a Game Boy Advance game) |
 | `e2e:ocr` | Reading and translating the test game end to end: every page and its translation, time from the last typed letter to the translation, no repeated lines after a minute on one page, one flashcard per sentence, a sign outside the text box, the wrong-language suggestion, the Classic reader, and a phone screen |
 
 ### OCR bench

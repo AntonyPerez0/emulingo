@@ -174,9 +174,13 @@ When a new version of Spritespeak is published, the app shows “An update is av
 
 Spritespeak was called Emulingo until October 2026, and its GitHub Pages address moved from `…github.io/emulingo/` to `…github.io/spritespeak/`.
 
-- **Your data comes along.** Browsers keep a site’s storage per domain, not per folder, and Spritespeak still uses Emulingo’s storage names, so your games, saves, flashcards, dictionary and settings are waiting at the new address in the same browser.
+- **In the browser, your data comes along.** Browsers keep a site’s storage per domain, not per folder, and Spritespeak still uses Emulingo’s storage names, so your games, saves, flashcards, dictionary and settings are waiting at the new address in the same browser. Open it once while online: the app and its text recognition files (about 27 MB) download again there.
+- **Installed it as an app?** Move your data with a backup before you remove the old app. Apps added to the Home Screen on iPhone and iPad (or to the Dock from Safari on a Mac) keep their own storage, apart from the browser’s.
+  1. Open the old app (it still opens offline) and choose **Settings › Data & privacy › Export backup** with game saves included.
+  2. Install Spritespeak from the new address, restore the backup with **Merge** and add your games again (backups never contain ROM files).
+  3. Then remove the old app. If your browser offers to clear the site’s data as you remove it, say no: the new address shares that data.
+- **The old address no longer gets updates.** A bookmark or an installed app may still open the copy your browser kept from before the move; use the new address instead.
 - **Backups** made with Emulingo restore as usual.
-- **Installed it as an app?** Install it again from the new address, then remove the old one; the old address no longer gets updates.
 
 ## Development
 

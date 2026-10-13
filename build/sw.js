@@ -4,8 +4,8 @@
 //     cdnLimits: { entries, bytes } }
 // (paths relative to the app's folder). Classic script, no imports.
 //
-// Caches (all prefixed "emulingo-", the app's former name, kept so caches made
-// before the rename are reused; Settings › Erase everything clears them):
+// Caches (all prefixed "emulingo-", the app's former name, which Settings ›
+// Erase everything clears by that prefix):
 //  - emulingo-shell-<scope>-<version>: the app shell, precached on install so
 //    the app opens offline after the first visit. Only older shell caches of
 //    this same app are deleted, never other apps' caches on a shared origin

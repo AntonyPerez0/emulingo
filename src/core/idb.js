@@ -1,8 +1,8 @@
 // IndexedDB access for the 'emulingo' database.
-// Storage names keep the app's former name, Emulingo: this database, the
-// 'emulingo:' localStorage keys, the 'emulingo-' caches, the backup marker
-// and the cross-tab channel and lock. Renaming them would strand everything
-// saved before the app became Spritespeak.
+// Storage names keep the app's former name, Emulingo, so data saved before
+// it became Spritespeak is still found: this database, the 'emulingo:'
+// localStorage keys, the backup marker, the cross-tab channel and lock, and
+// the 'emulingo-' caches (which Erase everything finds by that prefix).
 // - 'kv' (out-of-line keys) is kept from v1: rom:<id>, state:<id>…, sram:<id>,
 //   spelldict:<code>. The idb* helpers below read and write it.
 // - The other stores hold one record per item ({ id, … }) and are managed by

@@ -215,7 +215,7 @@ describe('loadGame configuration', () => {
     expect(typeof window.EJS_onGameStart).toBe('function');
     expect(typeof window.EJS_onSaveState).toBe('function');
     expect(typeof window.EJS_onLoadState).toBe('function');
-    expect(window.__spritespeakRomBytes).toBeUndefined();
+    expect(window.__emulingoRomBytes).toBeUndefined();
     p.catch(() => {});
   });
 

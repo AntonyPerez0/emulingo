@@ -440,7 +440,7 @@ async function main() {
       const em = await import('/src/core/emulator.js');
       const c = em.getGameCanvas();
       const r = c.getBoundingClientRect();
-      return { canvasW: c.width, canvasH: c.height, cssW: +r.width.toFixed(2), cssH: +r.height.toFixed(2), dpr: devicePixelRatio, grid: em.getGrid(), core: window.__spritespeakCore };
+      return { canvasW: c.width, canvasH: c.height, cssW: +r.width.toFixed(2), cssH: +r.height.toFixed(2), dpr: devicePixelRatio, grid: em.getGrid(), core: window.__emulingoCore };
     });
   }
 

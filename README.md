@@ -8,8 +8,6 @@ Everything except translation happens on your device: the emulator, the text rec
 
 > Spritespeak doesn’t include any games. Use ROM files of games you own, or homebrew and public-domain games.
 
-Spritespeak was called Emulingo until October 2026 ([what that means for you](#formerly-emulingo)).
-
 ![Play: a Game Boy game asks “Möchtest du gegen mich kämpfen?”, and the live translation beside it reads “Do you want to fight me?”, with the “ROUTE 1” sign under Also on screen](docs/screenshots/play-desktop-dark.png)
 
 <p>
@@ -148,7 +146,7 @@ The site that hosts Spritespeak (for example GitHub Pages) receives ordinary web
 
 Spritespeak keeps its data in your browser’s storage for this site: ROMs, save states, flashcards, the dictionary and history in IndexedDB; settings and the translation cache in local storage; the app, models and emulator files in the Cache Storage. After your first ROM import Spritespeak asks the browser to keep this storage persistent, so it isn’t cleared to free up space; Settings › Data & privacy shows whether the browser agreed and how much space is used.
 
-**Back up** in **Settings › Data & privacy › Export backup**. A backup is one JSON file with your settings, flashcards and their review history, dictionary, recent lines and study activity – and, if you tick the option, your game saves (save states and in-game saves). ROM files are never included; a save finds its game again once you add the same ROM on the new device. Restore with **Merge** (keeps what’s already here) or **Replace**. Backups from version 1, and any made while the app was called Emulingo, can be restored too.
+**Back up** in **Settings › Data & privacy › Export backup**. A backup is one JSON file with your settings, flashcards and their review history, dictionary, recent lines and study activity – and, if you tick the option, your game saves (save states and in-game saves). ROM files are never included; a save finds its game again once you add the same ROM on the new device. Restore with **Merge** (keeps what’s already here) or **Replace**. Backups from earlier versions, including version 1, can be restored too.
 
 **Erase everything** (Settings › Danger zone) removes all of it from this browser: games, saves (including the emulator’s own save storage), flashcards, settings, caches and the offline copy of the app.
 
@@ -169,18 +167,6 @@ Everything Spritespeak downloads is kept for next time, so most of it works offl
 | Translations | every new line | a few hundred bytes | Lines translated before are shown again; new lines show the original text until you’re back online |
 
 When a new version of Spritespeak is published, the app shows “An update is available” instead of changing under you mid-game; choose **Reload** when it suits you.
-
-## Formerly Emulingo
-
-Spritespeak was called Emulingo until October 2026, and its GitHub Pages address moved from `…github.io/emulingo/` to `…github.io/spritespeak/`.
-
-- **In the browser, your data comes along.** Browsers keep a site’s storage per domain, not per folder, and Spritespeak still uses Emulingo’s storage names, so your games, saves, flashcards, dictionary and settings are waiting at the new address in the same browser. Open it once while online: the app and its text recognition files (about 27 MB) download again there.
-- **Installed it as an app?** Move your data with a backup before you remove the old app. Apps added to the Home Screen on iPhone and iPad (or to the Dock from Safari on a Mac) keep their own storage, apart from the browser’s.
-  1. Open the old app (it still opens offline) and choose **Settings › Data & privacy › Export backup** with game saves included.
-  2. Install Spritespeak from the new address, restore the backup with **Merge** and add your games again (backups never contain ROM files).
-  3. Then remove the old app. If your browser offers to clear the site’s data as you remove it, say no: the new address shares that data.
-- **The old address no longer gets updates.** A bookmark or an installed app may still open the copy your browser kept from before the move; use the new address instead.
-- **Backups** made with Emulingo restore as usual.
 
 ## Development
 

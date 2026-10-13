@@ -47,7 +47,7 @@ process.env.PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK ??= '1';
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt);
 const ONLY = new Set(String(arg('--only', 'flow,states,shots,phone')).split(','));
-const SHOTS = arg('--shots', path.join(os.tmpdir(), 'emulingo-e2e-play'));
+const SHOTS = arg('--shots', path.join(os.tmpdir(), 'spritespeak-e2e-play'));
 const HEADED = argv.includes('--headed');
 const PORTS = arg('--port') ? [Number(arg('--port'))] : [5420, 5421, 5422, 5423, 5424, 5425, 5426, 5427];
 const PAGE_TIMEOUT = Number(arg('--page-timeout', 45)) * 1000;
@@ -1154,9 +1154,9 @@ async function phone(browser, router, base, romPath, gbaPath) {
 
 async function main() {
   await setupEmulatorJs();
-  const romDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emulingo-play-rom-'));
+  const romDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spritespeak-play-rom-'));
   const { romPath } = writeAll(romDir);
-  const gbaPath = writeGbaRom(path.join(romDir, 'emulingo-layout-test.gba'));
+  const gbaPath = writeGbaRom(path.join(romDir, 'spritespeak-layout-test.gba'));
   const { server, base } = await startVite();
   log('vite', base);
   const router = createCdnRouter({ repoRoot: ROOT, viteOrigin: base.replace(/\/$/, ''), emulatorjsDataDir: EJS_DIR });

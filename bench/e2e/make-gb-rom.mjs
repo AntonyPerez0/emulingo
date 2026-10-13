@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Pure-JS Game Boy ROM builder for the Emulingo end-to-end harness.
+// Pure-JS Game Boy ROM builder for the Spritespeak end-to-end harness.
 //
 // Produces a 32 KiB ROM-only (MBC none) DMG cartridge whose SM83 machine code
 // is assembled right here, byte by byte (tiny label/fixup helper, no external
@@ -20,7 +20,7 @@
 // boots without a boot ROM, so nothing verifies it (validated in run-e2e).
 //
 //   node bench/e2e/make-gb-rom.mjs [outDir]
-// writes <outDir>/emulingo-ocr-test.gb, .json (expected text + layout) and
+// writes <outDir>/spritespeak-ocr-test.gb, .json (expected text + layout) and
 // expected-page-N.png renders (default outDir: bench/.cache/e2e).
 
 import fs from 'node:fs';
@@ -321,7 +321,7 @@ export function buildRom({ hud = false } = {}) {
   rom.set([0x00, 0xc3, 0x50, 0x01], 0x100);
   // 0x104-0x133: original 48-byte pattern (NOT the Nintendo logo)
   for (let i = 0; i < 48; i++) rom[0x104 + i] = (i * 37 + 0x5a) & 0xff ^ (i & 1 ? 0xa5 : 0x3c);
-  const title = hud ? 'EMULINGO HUD' : 'EMULINGO OCR';
+  const title = hud ? 'SPRITESPEAK HUD' : 'SPRITESPEAK OCR';
   for (let i = 0; i < 15; i++) rom[0x134 + i] = i < title.length ? title.charCodeAt(i) : 0;
   rom[0x143] = 0x00;            // DMG only
   rom[0x144] = 0x30; rom[0x145] = 0x30; // new licensee "00"
@@ -344,7 +344,7 @@ export function buildRom({ hud = false } = {}) {
   return { rom, codeSize: code.length };
 }
 
-export const romName = (hud) => hud ? 'emulingo-ocr-test-hud.gb' : 'emulingo-ocr-test.gb';
+export const romName = (hud) => hud ? 'spritespeak-ocr-test-hud.gb' : 'spritespeak-ocr-test.gb';
 export function expectedJson({ hud = false } = {}) {
   return {
     rom: romName(hud),

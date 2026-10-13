@@ -1,4 +1,4 @@
-// Original 8x8 bitmap font + scene tiles for the Emulingo e2e test ROM.
+// Original 8x8 bitmap font + scene tiles for the Spritespeak e2e test ROM.
 //
 // Hand-designed for this harness (not extracted from any game). The style is
 // deliberately "Pokémon-like" because that is what the OCR must cope with:

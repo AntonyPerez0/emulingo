@@ -22,7 +22,7 @@ export function gbaRomBytes() {
   ];
   const rom = Buffer.alloc(1024, 0);
   rom.writeUInt32LE(0xEA00002E, 0); // b 0xC0 (over the header)
-  rom.write('EMULINGOTEST', 0xA0, 'ascii');
+  rom.write('SPRITESPEAK', 0xA0, 'ascii');
   rom.write('AEMT', 0xAC, 'ascii');
   rom.write('01', 0xB0, 'ascii');
   rom[0xB2] = 0x96;

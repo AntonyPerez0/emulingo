@@ -3,7 +3,7 @@
 // storage, Safari private mode, quota), so every call is wrapped. save()
 // reports failures instead of swallowing them.
 
-const PREFIX = 'emulingo:';
+const PREFIX = 'emulingo:'; // the app's former name, kept for saved data (see idb.js)
 let frozen = false;
 
 function ls() {

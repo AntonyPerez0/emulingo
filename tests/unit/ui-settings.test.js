@@ -209,7 +209,7 @@ describe('structure and names', () => {
     const about = $('#settings-about').textContent;
     expect(about).toMatch(/Version \d+\.\d+\.\d+ · build/);
     const link = $('#settings-about a[href^="https://github.com/"]');
-    expect(link.getAttribute('href')).toBe('https://github.com/AntonyPerez0/emulingo');
+    expect(link.getAttribute('href')).toBe('https://github.com/AntonyPerez0/spritespeak');
     expect(link.getAttribute('rel')).toContain('noopener');
     expect(link.textContent).toContain('(opens in a new tab)');
     for (const text of ['EmulatorJS', 'GPL-3.0', 'PaddleOCR', 'Apache-2.0', 'ONNX Runtime', 'Tesseract', 'nspell', 'MPL-2.0']) {
@@ -506,7 +506,7 @@ describe('data actions', () => {
     btn.focus();
     btn.click();
     expect(btn.getAttribute('aria-busy')).toBe('true');
-    await vi.waitFor(() => expect(status('backup')).toMatch(/^Backup downloaded: emulingo-backup-\d{4}-\d{2}-\d{2}\.json/));
+    await vi.waitFor(() => expect(status('backup')).toMatch(/^Backup downloaded: spritespeak-backup-\d{4}-\d{2}-\d{2}\.json/));
     expect(btn.hasAttribute('aria-busy')).toBe(false);
     expect(document.activeElement).toBe(btn);
   });
@@ -662,7 +662,7 @@ describe('restoring a backup', () => {
     const err = $('[data-error-for="backup"]');
     expect(err.textContent).toBe('');
     pick('this is not json');
-    await vi.waitFor(() => expect(err.textContent).toContain('isn’t an Emulingo backup'));
+    await vi.waitFor(() => expect(err.textContent).toContain('isn’t a Spritespeak backup'));
     expect(err.getAttribute('role')).toBe('alert');
     expect(err.hasAttribute('hidden')).toBe(false);
     expect(dlg()).toBeNull();
@@ -702,7 +702,7 @@ describe('restoring a backup', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     backup.applyBackup.mockRejectedValueOnce(Object.assign(new Error('full'), { name: 'QuotaExceededError' }));
     const onCards = vi.fn();
-    window.addEventListener('emulingo:cards-changed', onCards);
+    window.addEventListener('spritespeak:cards-changed', onCards);
     pick(hostile());
     await vi.waitFor(() => expect(dlg()).not.toBeNull());
     dialogButton('Merge').click();
@@ -711,7 +711,7 @@ describe('restoring a backup', () => {
     expect(err.textContent).not.toContain('wasn’t changed');
     expect(onCards).toHaveBeenCalled();
     expect($('[data-action="import"]').hasAttribute('aria-busy')).toBe(false);
-    window.removeEventListener('emulingo:cards-changed', onCards);
+    window.removeEventListener('spritespeak:cards-changed', onCards);
     spy.mockRestore();
   });
 });

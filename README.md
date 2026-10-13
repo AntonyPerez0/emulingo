@@ -1,12 +1,14 @@
-# Emulingo
+# Spritespeak
 
 **Play retro games you own and learn a language as you go.**
 
-Emulingo runs classic console games in your browser, reads the text on the game screen, translates it line by line and turns what you read into flashcards. Play a Pokémon game in German, French or Spanish, and the dialogue you meet becomes your vocabulary list.
+Spritespeak runs classic console games in your browser, reads the text on the game screen, translates it line by line and turns what you read into flashcards. Play a Pokémon game in German, French or Spanish, and the dialogue you meet becomes your vocabulary list.
 
-Everything except translation happens on your device: the emulator, the text recognition, your games, saves and flashcards. There’s no account and no Emulingo server.
+Everything except translation happens on your device: the emulator, the text recognition, your games, saves and flashcards. There’s no account and no Spritespeak server.
 
-> Emulingo doesn’t include any games. Use ROM files of games you own, or homebrew and public-domain games.
+> Spritespeak doesn’t include any games. Use ROM files of games you own, or homebrew and public-domain games.
+
+Spritespeak was called Emulingo until October 2026 ([what that means for you](#formerly-emulingo)).
 
 ![Play: a Game Boy game asks “Möchtest du gegen mich kämpfen?”, and the live translation beside it reads “Do you want to fight me?”, with the “ROUTE 1” sign under Also on screen](docs/screenshots/play-desktop-dark.png)
 
@@ -15,7 +17,7 @@ Everything except translation happens on your device: the emulator, the text rec
   <img src="docs/screenshots/play-phone-dark.png" alt="Play on a phone: the game at the top, the touch controls docked underneath it, then the toolbar" width="19%">
 </p>
 
-<sub>The screenshots show Emulingo’s own homebrew test cartridge (`bench/e2e/make-gb-rom.mjs`).</sub>
+<sub>The screenshots show Spritespeak’s own homebrew test cartridge (`bench/e2e/make-gb-rom.mjs`).</sub>
 
 ## Features
 
@@ -23,7 +25,7 @@ Everything except translation happens on your device: the emulator, the text rec
 - **Made for phones** – held upright, the touch controls sit under the game with the translation as a caption between them; held sideways, the game fills the screen with the controls beside it and the caption under it. The controls never cover the game’s text, and the caption’s arrow opens the full Live translation card.
 - **Your game library** – ROM files stay in your browser’s storage. ZIP archives are unpacked on import, and the same game is never stored twice.
 - **Saves that last** – in-game saves (a Pokémon game’s own Save menu) are kept safe across sessions, plus a quick-save slot and an autosave that offers “Resume where you left off?” the next time you play.
-- **Live translation** – Emulingo watches the screen and reads dialogue boxes, menus and battle text as they appear. Dialogue that runs over several boxes is joined into whole sentences before it is translated.
+- **Live translation** – Spritespeak watches the screen and reads dialogue boxes, menus and battle text as they appear. Dialogue that runs over several boxes is joined into whole sentences before it is translated.
 - **Translate now and Text area** – read the screen on demand (T), or mark the part of the screen to read when a game draws text without a box.
 - **Look up any word** – select a word in the live panel to see its translation, hear it and add it to your deck.
 - **Dictionary** – every line and word you meet is recorded with its translation, searchable, with Anki export.
@@ -52,7 +54,7 @@ Any of these can also be imported inside a `.zip` (or `.7z`, after you choose th
 
 ## Supported game languages
 
-You can translate into any of these 28 languages. How well Emulingo reads a game depends on the game’s language:
+You can translate into any of these 28 languages. How well Spritespeak reads a game depends on the game’s language:
 
 | Game language | Text recognition | Spell correction of misreads |
 |---|---|---|
@@ -65,7 +67,7 @@ Accuracy is measured on the OCR bench for English, German, French and Spanish ga
 
 ## How it works
 
-1. **Frame capture** – a few times a second Emulingo copies the game’s picture at its native resolution (160 × 144 for a Game Boy), pixel for pixel, without smoothing.
+1. **Frame capture** – a few times a second Spritespeak copies the game’s picture at its native resolution (160 × 144 for a Game Boy), pixel for pixel, without smoothing.
 2. **Text-box detection** – it finds framed boxes (dialogue, menus, battle text) and ignores pixels that blink, such as the “more text” arrow. A box is read only once its contents have stopped changing, so text that is still typing out isn’t read half-finished. Screens without boxes can be read as a whole.
 3. **Neural text recognition in a worker** – each line of a box is enlarged and read by a PaddleOCR PP-OCRv5 model running in [ONNX Runtime Web](https://onnxruntime.ai) inside a Web Worker, so reading text doesn’t hold up the game. If the neural reader can’t run, the Classic reader ([Tesseract.js](https://tesseract.projectnaptha.com)) takes over.
 4. **Clean-up** – game quirks are fixed (POKéMON spellings, cursor and arrow glyphs, letter-spaced fonts), and for uncertain lines a Hunspell dictionary corrects misread words. Both run off the main thread.
@@ -113,7 +115,7 @@ Game controls can be changed in **More game options › Game controls…**.
 
 ## Accessibility
 
-Emulingo aims to meet [WCAG 2.2](https://www.w3.org/TR/WCAG22/) level AA.
+Spritespeak aims to meet [WCAG 2.2](https://www.w3.org/TR/WCAG22/) level AA.
 
 - **Keyboard** – every control is a real button, link or form field with a visible focus ring. The game keeps the keys it needs, and Esc or Tab always leaves it. Single-key shortcuts can be switched off (WCAG 2.1.4).
 - **Screen readers** – new lines are announced (can be turned off), the game text and translations are marked up in their own languages, and every page has one heading to land on.
@@ -125,28 +127,28 @@ What has been tested: the end-to-end suites run [axe-core](https://github.com/de
 Known gaps:
 
 - Testing with real screen readers (NVDA, JAWS, VoiceOver, TalkBack) hasn’t been done yet.
-- EmulatorJS draws a few controls of its own inside the game frame; Emulingo provides its own accessible controls for all of them, but one of EmulatorJS’s menu buttons can’t be hidden.
-- The game picture itself is only as accessible as the text Emulingo can read from it.
+- EmulatorJS draws a few controls of its own inside the game frame; Spritespeak provides its own accessible controls for all of them, but one of EmulatorJS’s menu buttons can’t be hidden.
+- The game picture itself is only as accessible as the text Spritespeak can read from it.
 
 If something doesn’t work for you, please open an issue.
 
 ## Privacy
 
-**Stays on your device:** your ROM files, game saves, flashcards, dictionary, history and settings, and all text recognition. Nothing is uploaded to an Emulingo server – there isn’t one. No analytics, no cookies, no account.
+**Stays on your device:** your ROM files, game saves, flashcards, dictionary, history and settings, and all text recognition. Nothing is uploaded to a Spritespeak server – there isn’t one. No analytics, no cookies, no account.
 
-**Sent to translation services:** the text Emulingo reads from the game screen, and words you look up, are sent to Google Translate’s public endpoints (`translate.googleapis.com`, with `clients5.google.com` as a second route), or to MyMemory (`api.mymemory.translated.net`) if Google doesn’t answer. Google also reports which language it detected, which Emulingo uses to warn you when the game language setting looks wrong. These free services aren’t run by Emulingo and have their own privacy policies. Translations are cached on your device, so a line isn’t sent again.
+**Sent to translation services:** the text Spritespeak reads from the game screen, and words you look up, are sent to Google Translate’s public endpoints (`translate.googleapis.com`, with `clients5.google.com` as a second route), or to MyMemory (`api.mymemory.translated.net`) if Google doesn’t answer. Google also reports which language it detected, which Spritespeak uses to warn you when the game language setting looks wrong. These free services aren’t run by Spritespeak and have their own privacy policies. Translations are cached on your device, so a line isn’t sent again.
 
 **Downloaded when needed:** the emulator from `cdn.emulatorjs.org`, spelling dictionaries from `cdn.jsdelivr.net`, Classic reader language data from `tessdata.projectnaptha.com`, and the Japanese and Chinese reader from PaddleOCR’s model server (`paddle-model-ecology.bj.bcebos.com`, Baidu Cloud). Like any website, these servers see your IP address and what is downloaded, but no game text.
 
-**Speech** uses your browser’s voices. Emulingo prefers voices installed on your device; some browsers also offer online voices (for example Chrome’s “Google” voices), which send the spoken text to that voice provider.
+**Speech** uses your browser’s voices. Spritespeak prefers voices installed on your device; some browsers also offer online voices (for example Chrome’s “Google” voices), which send the spoken text to that voice provider.
 
-The site that hosts Emulingo (for example GitHub Pages) receives ordinary web requests for the app’s files.
+The site that hosts Spritespeak (for example GitHub Pages) receives ordinary web requests for the app’s files.
 
 ## Storage and backups
 
-Emulingo keeps its data in your browser’s storage for this site: ROMs, save states, flashcards, the dictionary and history in IndexedDB; settings and the translation cache in local storage; the app, models and emulator files in the Cache Storage. After your first ROM import Emulingo asks the browser to keep this storage persistent, so it isn’t cleared to free up space; Settings › Data & privacy shows whether the browser agreed and how much space is used.
+Spritespeak keeps its data in your browser’s storage for this site: ROMs, save states, flashcards, the dictionary and history in IndexedDB; settings and the translation cache in local storage; the app, models and emulator files in the Cache Storage. After your first ROM import Spritespeak asks the browser to keep this storage persistent, so it isn’t cleared to free up space; Settings › Data & privacy shows whether the browser agreed and how much space is used.
 
-**Back up** in **Settings › Data & privacy › Export backup**. A backup is one JSON file with your settings, flashcards and their review history, dictionary, recent lines and study activity – and, if you tick the option, your game saves (save states and in-game saves). ROM files are never included; a save finds its game again once you add the same ROM on the new device. Restore with **Merge** (keeps what’s already here) or **Replace**. Backups from Emulingo 1 can be restored too.
+**Back up** in **Settings › Data & privacy › Export backup**. A backup is one JSON file with your settings, flashcards and their review history, dictionary, recent lines and study activity – and, if you tick the option, your game saves (save states and in-game saves). ROM files are never included; a save finds its game again once you add the same ROM on the new device. Restore with **Merge** (keeps what’s already here) or **Replace**. Backups from version 1, and any made while the app was called Emulingo, can be restored too.
 
 **Erase everything** (Settings › Danger zone) removes all of it from this browser: games, saves (including the emulator’s own save storage), flashcards, settings, caches and the offline copy of the app.
 
@@ -154,7 +156,7 @@ Your data doesn’t sync between devices or browsers; use a backup to move it.
 
 ## Downloads and offline use
 
-Everything Emulingo downloads is kept for next time, so most of it works offline after the first use:
+Everything Spritespeak downloads is kept for next time, so most of it works offline after the first use:
 
 | What | Downloaded | Size | Offline afterwards |
 |---|---|---|---|
@@ -166,7 +168,15 @@ Everything Emulingo downloads is kept for next time, so most of it works offline
 | The Classic reader | only for languages or browsers that need it | 4 MB, plus 2–15 MB of language data | Yes |
 | Translations | every new line | a few hundred bytes | Lines translated before are shown again; new lines show the original text until you’re back online |
 
-When a new version of Emulingo is published, the app shows “An update is available” instead of changing under you mid-game; choose **Reload** when it suits you.
+When a new version of Spritespeak is published, the app shows “An update is available” instead of changing under you mid-game; choose **Reload** when it suits you.
+
+## Formerly Emulingo
+
+Spritespeak was called Emulingo until October 2026, and its GitHub Pages address moved from `…github.io/emulingo/` to `…github.io/spritespeak/`.
+
+- **Your data comes along.** Browsers keep a site’s storage per domain, not per folder, and Spritespeak still uses Emulingo’s storage names, so your games, saves, flashcards, dictionary and settings are waiting at the new address in the same browser.
+- **Backups** made with Emulingo restore as usual.
+- **Installed it as an app?** Install it again from the new address, then remove the old one; the old address no longer gets updates.
 
 ## Development
 
@@ -184,7 +194,7 @@ When a new version of Emulingo is published, the app shows “An update is avail
 | `npm run bench:ocr` | OCR accuracy and speed benchmark |
 | `npm run bench:scenes`, `bench:report` | Bench contact sheet; re-render bench tables |
 
-Emulingo is plain JavaScript modules built with [Vite](https://vitejs.dev) – no framework.
+Spritespeak is plain JavaScript modules built with [Vite](https://vitejs.dev) – no framework.
 
 ```
 src/core/        data, emulator and OCR logic (no DOM), unit-tested
@@ -217,11 +227,11 @@ The suites drive headless Chromium with [Playwright](https://playwright.dev) (ru
 
 ### OCR bench
 
-`npm run bench:ocr` renders 42 Pokémon-style screens (original art and fonts) in four presentations, from a sharp 4× scale to a blurry phone screen, runs the OCR on each and scores it against the known text. On this bench, dialogue is read with 0.1 % character errors and 96 % of dialogue lines are exactly right (Emulingo 1: 27.1 % errors), menus with 3.8 % (Emulingo 1: 73.7 %), with no text invented on screens without any, and without blocking the page (Emulingo 1 froze it for about 1.2 s per read). See [bench/README.md](bench/README.md).
+`npm run bench:ocr` renders 42 Pokémon-style screens (original art and fonts) in four presentations, from a sharp 4× scale to a blurry phone screen, runs the OCR on each and scores it against the known text. On this bench, dialogue is read with 0.1 % character errors and 96 % of dialogue lines are exactly right (version 1: 27.1 % errors), menus with 3.8 % (version 1: 73.7 %), with no text invented on screens without any, and without blocking the page (version 1 froze it for about 1.2 s per read). See [bench/README.md](bench/README.md).
 
 ## Hosting on GitHub Pages
 
-Emulingo is a static site, and the production build works from any folder (`https://<user>.github.io/<repo>/`) or domain.
+Spritespeak is a static site, and the production build works from any folder (`https://<user>.github.io/<repo>/`) or domain.
 
 1. Push the repository to GitHub.
 2. In the repository, open **Settings › Pages** and set **Source** to **GitHub Actions**.
@@ -231,7 +241,7 @@ Any other static host works too: run `npm run build` and serve `dist/` over HTTP
 
 ## Licenses and credits
 
-Emulingo builds on:
+Spritespeak builds on:
 
 | Project | Used for | License |
 |---|---|---|
@@ -244,9 +254,9 @@ Emulingo builds on:
 
 Translations come from Google Translate and MyMemory, third-party services with their own terms.
 
-The repository doesn’t include a license for Emulingo’s own code yet; until one is added, it isn’t licensed for reuse.
+The repository doesn’t include a license for Spritespeak’s own code yet; until one is added, it isn’t licensed for reuse.
 
-Emulingo isn’t affiliated with or endorsed by Nintendo, The Pokémon Company, Sega or any game publisher. Game and system names are used only to describe compatibility.
+Spritespeak isn’t affiliated with or endorsed by Nintendo, The Pokémon Company, Sega or any game publisher. Game and system names are used only to describe compatibility.
 
 ## Roadmap
 

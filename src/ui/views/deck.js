@@ -69,7 +69,7 @@ export function dueLabel(c, now = Date.now()) {
 
 export function exportFileName(ext, now = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
-  return `emulingo-deck-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.${ext}`;
+  return `spritespeak-deck-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.${ext}`;
 }
 
 // ---- View state -----------------------------------------------------------------
@@ -87,7 +87,7 @@ const speechOk = () => {
 };
 
 function cardsChanged() {
-  window.dispatchEvent(new Event('emulingo:cards-changed'));
+  window.dispatchEvent(new Event('spritespeak:cards-changed'));
 }
 
 // ---- Markup -----------------------------------------------------------------------

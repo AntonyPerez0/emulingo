@@ -77,7 +77,7 @@ async function gbaZip() {
   const readme = new TextEncoder().encode('Homebrew test cartridge\n');
   return makeZip([
     { name: 'README.txt', data: readme },
-    { name: 'Emulingo Test (World).gba', data: gba, method: 8, compressed: await deflateRaw(gba) }
+    { name: 'Spritespeak Test (World).gba', data: gba, method: 8, compressed: await deflateRaw(gba) }
   ]);
 }
 
@@ -105,7 +105,7 @@ function deleteSavesDb() {
   });
 }
 
-// Recreate what Emulingo v1 left behind: the library in localStorage, the
+// Recreate what version 1 left behind: the library in localStorage, the
 // ROM bytes in kv 'rom:<id>' and an in-game save in EmulatorJS's IDBFS
 // database, named the way v1's blob-URL loading made RetroArch name it.
 async function seedV1({ id, name, sramByte, core = 'Gambatte' }) {

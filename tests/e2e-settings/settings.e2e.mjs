@@ -27,7 +27,7 @@ const argv = process.argv.slice(2);
 const arg = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : null);
 // other harnesses share the 5400-5499 range: take the first free port
 const PORTS = arg('--port') ? [Number(arg('--port'))] : [5453, 5454, 5455, 5456, 5457, 5458];
-const OUT = arg('--out') || path.join(os.tmpdir(), 'emulingo-settings-e2e');
+const OUT = arg('--out') || path.join(os.tmpdir(), 'spritespeak-settings-e2e');
 const AXE_VERSION = '4.10.3';
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
 
@@ -54,7 +54,7 @@ async function axeSource() {
   const local = path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
   if (fs.existsSync(local)) return fs.readFileSync(local, 'utf8');
   if (process.env.AXE_PATH && fs.existsSync(process.env.AXE_PATH)) return fs.readFileSync(process.env.AXE_PATH, 'utf8');
-  const cached = path.join(os.tmpdir(), `emulingo-axe-${AXE_VERSION}.min.js`);
+  const cached = path.join(os.tmpdir(), `spritespeak-axe-${AXE_VERSION}.min.js`);
   if (fs.existsSync(cached)) return fs.readFileSync(cached, 'utf8');
   const res = await fetch(`https://registry.npmjs.org/axe-core/-/axe-core-${AXE_VERSION}.tgz`);
   if (!res.ok) throw new Error(`axe-core download failed: ${res.status}`);
@@ -320,7 +320,7 @@ async function restore(browser, base) {
   await page.setInputFiles('#set-backup-file', { name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":') });
   await page.waitForFunction(() => document.querySelector('[data-error-for="backup"]').textContent.trim() !== '');
   const err = await page.$eval('[data-error-for="backup"]', (el) => ({ role: el.getAttribute('role'), text: el.textContent.trim(), height: el.getBoundingClientRect().height }));
-  check('restore: an unreadable file gets an inline alert', err.role === 'alert' && /isn’t an Emulingo backup/.test(err.text) && err.height > 20, err);
+  check('restore: an unreadable file gets an inline alert', err.role === 'alert' && /isn’t a Spritespeak backup/.test(err.text) && err.height > 20, err);
   check('restore run: no page errors', errors.length === 0, { errors });
   await ctx.close();
 }

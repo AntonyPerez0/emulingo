@@ -31,7 +31,7 @@ function hydrateIcons(root = document) {
 }
 
 function showBootError(err) {
-  console.error('[emulingo] boot failed', err);
+  console.error('[spritespeak] boot failed', err);
   const main = document.getElementById('main');
   if (!main) return;
   for (const s of main.querySelectorAll('section[data-view]')) s.hidden = true;
@@ -42,7 +42,7 @@ function showBootError(err) {
   panel.className = 'boot-error';
   render(panel, html`<div class="card stack-4" role="alert">
     <div class="empty-state__icon empty-state__icon--danger" aria-hidden="true">${icon('alert-triangle', { size: 28 })}</div>
-    <h1 tabindex="-1">Emulingo couldn’t start</h1>
+    <h1 tabindex="-1">Spritespeak couldn’t start</h1>
     <p class="text-muted">Something went wrong while opening your saved data. Reloading usually fixes it. If it keeps happening, your browser may be blocking site storage — for example in a private window.</p>
     ${detail ? html`<details class="disclosure"><summary>Technical details</summary><pre class="text-sm text-muted">${detail}</pre></details>` : ''}
     <div class="cluster"><button type="button" class="btn btn--primary" data-boot-reload>${icon('refresh-cw', { size: 18 })}<span>Reload</span></button></div>
@@ -65,7 +65,7 @@ function isOwnScript(filename) {
 function installErrorHandlers() {
   let lastToastAt = 0;
   const report = (err, source) => {
-    console.error(`[emulingo] ${source}`, err);
+    console.error(`[spritespeak] ${source}`, err);
     const now = Date.now();
     if (now - lastToastAt < ERROR_TOAST_GAP_MS) return;
     lastToastAt = now;
@@ -78,7 +78,7 @@ function installErrorHandlers() {
     // Opaque cross-origin errors and EmulatorJS's own scripts are handled by the Play view.
     if (!e.error && /^Script error\.?$/.test(e.message || '')) return;
     if (!isOwnScript(e.filename)) {
-      console.warn('[emulingo] third-party script error', e.message);
+      console.warn('[spritespeak] third-party script error', e.message);
       return;
     }
     report(e.error || e.message, 'uncaught error');
@@ -126,7 +126,7 @@ function initSpeech() {
   let tts = null;
   import('./core/tts.js')
     .then((mod) => { tts = mod; if (tts.init) tts.init(); })
-    .catch((err) => console.warn('[emulingo] speech unavailable', err));
+    .catch((err) => console.warn('[spritespeak] speech unavailable', err));
   // Leaving a view silences it; registered before the router so it runs before
   // the next view shows. Param-only changes (#/deck?q=…) and in-page anchors don't.
   let viewId = (parseHash(location.hash) || {}).id;
@@ -152,13 +152,13 @@ function initSpeech() {
 
 async function initDueBadge() {
   let srs;
-  try { srs = await import('./core/srs.js'); } catch (err) { console.warn('[emulingo] due count unavailable', err); return; }
+  try { srs = await import('./core/srs.js'); } catch (err) { console.warn('[spritespeak] due count unavailable', err); return; }
   const refresh = () => {
     try { setNavBadge('review', srs.dueCount()); } catch { /* data not ready */ }
   };
   refresh();
   onViewChange(refresh);
-  window.addEventListener('emulingo:cards-changed', refresh);
+  window.addEventListener('spritespeak:cards-changed', refresh);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   // Cards fall due over time even when nothing else happens.
   setInterval(refresh, 60 * 1000);
@@ -186,7 +186,7 @@ function registerServiceWorker() {
     try {
       reg = await navigator.serviceWorker.register('./sw.js');
     } catch (err) {
-      console.warn('[emulingo] service worker registration failed', err);
+      console.warn('[spritespeak] service worker registration failed', err);
       return;
     }
     // (some embedded browsers and test harnesses stub register() out)

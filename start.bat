@@ -1,5 +1,5 @@
 @echo off
-rem Start Emulingo locally: installs dependencies on first run, then opens
+rem Start Spritespeak locally: installs dependencies on first run, then opens
 rem the app in your browser (only reachable from this computer).
 cd /d "%~dp0"
 
@@ -20,6 +20,6 @@ if not exist node_modules\ (
   )
 )
 
-echo Starting Emulingo... (close this window or press Ctrl+C to stop it)
+echo Starting Spritespeak... (close this window or press Ctrl+C to stop it)
 call npm.cmd run dev -- --open
 if errorlevel 1 pause

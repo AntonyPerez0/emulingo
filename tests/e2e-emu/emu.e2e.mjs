@@ -274,7 +274,7 @@ async function main() {
     await reload(page);
     const z = await page.evaluate(async () => {
       const zip = await t.gbaZip();
-      const imp = await t.rom.importRomFile(new File([zip], 'Emulingo Test.zip'));
+      const imp = await t.rom.importRomFile(new File([zip], 'Spritespeak Test.zip'));
       const t0 = performance.now();
       const loading = t.emu.loadGame(imp.rom, imp.bytes);
       // the player left the Play view while the game was loading

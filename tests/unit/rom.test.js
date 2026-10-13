@@ -192,7 +192,7 @@ describe('importRomFile', () => {
   it('rejects unsupported, empty and damaged files with friendly messages', async () => {
     const e1 = await importRomFile(fakeFile('save.sav', gbRom())).catch((e) => e);
     expect(e1.code).toBe('unsupported');
-    expect(e1.message).toBe('“save.sav” isn’t a game file Emulingo can play. Choose a ROM file such as .gb, .gba or .nes.');
+    expect(e1.message).toBe('“save.sav” isn’t a game file Spritespeak can play. Choose a ROM file such as .gb, .gba or .nes.');
     await expect(importRomFile(fakeFile('x.constructor', gbRom()))).rejects.toMatchObject({ code: 'unsupported' });
     await expect(importRomFile(fakeFile('a.gb', new Uint8Array(0)))).rejects.toMatchObject({ code: 'empty' });
     await expect(importRomFile(fakeFile('a.zip', gbRom()))).rejects.toMatchObject({ code: 'corrupt' });

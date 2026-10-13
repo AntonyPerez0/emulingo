@@ -21,7 +21,7 @@ export const HEAVY_BYTES = 1024 * 1024;
 // EmulatorJS needs about 2 MB per system (scripts, core, its version report)
 export const CDN_LIMITS = Object.freeze({ entries: 60, bytes: 64 * 1024 * 1024 });
 // the declaration in build/sw.js whose fallback value the manifest replaces
-const DECLARATION = /^const MANIFEST = self\.__EMULINGO_SW_MANIFEST__ \|\| .*;$/m;
+const DECLARATION = /^const MANIFEST = self\.__SPRITESPEAK_SW_MANIFEST__ \|\| .*;$/m;
 
 const sha = (data) => crypto.createHash('sha256').update(data).digest('hex');
 
@@ -65,16 +65,16 @@ export function buildManifest(files, { build = 'dev', heavyBytes = HEAVY_BYTES, 
 }
 
 export function renderServiceWorker(source, manifest) {
-  if (!DECLARATION.test(source)) throw new Error('build/sw.js must declare `const MANIFEST = self.__EMULINGO_SW_MANIFEST__ || …;`');
+  if (!DECLARATION.test(source)) throw new Error('build/sw.js must declare `const MANIFEST = self.__SPRITESPEAK_SW_MANIFEST__ || …;`');
   return source.replace(DECLARATION, () => `const MANIFEST = ${JSON.stringify(manifest)};`);
 }
 
-// Served as sw.js by the dev server. Emulingo 1 registered its worker in dev
+// Served as sw.js by the dev server. Version 1 registered its worker in dev
 // too, and that network-first worker would otherwise keep controlling
 // localhost, re-caching every module (and the 40 MB of OCR files) forever:
 // the browser's update check gets the dev server's index.html and keeps the
 // old worker. This replacement deletes the v1 caches and unregisters itself.
-export const DEV_RESET_WORKER = `// Emulingo dev server: removes a service worker left by a production build or Emulingo 1.
+export const DEV_RESET_WORKER = `// Spritespeak dev server: removes a service worker left by a production build or by version 1.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
@@ -89,7 +89,7 @@ self.addEventListener('activate', (event) => {
 /** Dev-server half of the service worker: answers sw.js with DEV_RESET_WORKER (the app registers nothing in dev). */
 export function serviceWorkerDevReset() {
   return {
-    name: 'emulingo:service-worker-dev-reset',
+    name: 'spritespeak:service-worker-dev-reset',
     apply: 'serve',
     configureServer(server) {
       const url = `${server.config.base || '/'}${SW_FILE}`;
@@ -113,7 +113,7 @@ const kb = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1
 export function serviceWorker({ build = 'dev', entry = 'index.html', heavyBytes = HEAVY_BYTES, cdnLimits = CDN_LIMITS, minify = true } = {}) {
   let logger = null;
   return {
-    name: 'emulingo:service-worker',
+    name: 'spritespeak:service-worker',
     apply: 'build',
     configResolved(config) {
       logger = config.logger;

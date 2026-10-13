@@ -28,7 +28,7 @@ export function getVariant(id) {
 }
 
 // EXACT copy of the arithmetic in src/core/emulator.js getGrid() (with the
-// native dims passed in instead of read from window.__emulingoCore)
+// native dims passed in instead of read from window.__spritespeakCore)
 export function gridFor(srcW, srcH, nativeW, nativeH) {
   const scale = Math.min(srcW / nativeW, srcH / nativeH);
   const contentW = Math.min(srcW, Math.round(nativeW * scale));

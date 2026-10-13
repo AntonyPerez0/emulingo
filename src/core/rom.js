@@ -409,9 +409,9 @@ function ownBuffer(u8) {
 // ------------------------------------------------------------- import
 
 const MESSAGES = {
-  unsupported: (name) => `“${name}” isn’t a game file Emulingo can play. Choose a ROM file such as .gb, .gba or .nes.`,
+  unsupported: (name) => `“${name}” isn’t a game file Spritespeak can play. Choose a ROM file such as .gb, .gba or .nes.`,
   'needs-system': () => 'Choose which system this game is for.',
-  'no-rom-in-archive': () => 'This archive doesn’t contain a game Emulingo can play.',
+  'no-rom-in-archive': () => 'This archive doesn’t contain a game Spritespeak can play.',
   empty: () => 'This file is empty.',
   'too-large': () => 'This file is too large to play in the browser.',
   'read-failed': () => 'Couldn’t read this file. Try choosing it again.',

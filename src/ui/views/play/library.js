@@ -44,7 +44,7 @@ export function askSystem(name) {
   const options = rom.SYSTEMS.map((s) => ({ value: s.core, label: s.name }));
   const dlg = openDialog({
     title: 'Which system is this game for?',
-    content: html`<p class="dialog__text">Emulingo can’t tell which console “${name}” is for. Choose it, and the game is remembered with that system.</p>
+    content: html`<p class="dialog__text">Spritespeak can’t tell which console “${name}” is for. Choose it, and the game is remembered with that system.</p>
       ${selectField({ id, label: 'System', options, value: 'gb' })}`,
     actions: [
       { label: 'Cancel', kind: 'secondary', value: null },
@@ -183,7 +183,7 @@ export function createLibrary(section, { onPlay = () => {}, beforeImport = () =>
     if (res.warnings.includes('not-saved')) {
       toast(res.warnings.includes('storage-full')
         ? 'Your device is out of space, so this game is only kept until you close the page.'
-        : 'This browser isn’t letting Emulingo store games, so this one is only kept until you close the page.', { kind: 'warning' });
+        : 'This browser isn’t letting Spritespeak store games, so this one is only kept until you close the page.', { kind: 'warning' });
     } else if (res.warnings.includes('large')) {
       toast('This is a large game, so it may take a while to start.', { kind: 'info' });
     }

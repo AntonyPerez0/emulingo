@@ -62,7 +62,7 @@ export function makeSramCounterGbRom() {
   const rom = new Uint8Array(32768);
   const put = (addr, bytes) => bytes.forEach((b, i) => { rom[addr + i] = b; });
   put(0x100, [0x00, 0xc3, 0x50, 0x01]); // nop; jp 0x0150
-  const title = 'EMULINGOSRAM';
+  const title = 'SPRITESPEAKSRAM';
   for (let i = 0; i < title.length; i++) rom[0x134 + i] = title.charCodeAt(i);
   rom[0x147] = 0x03; // MBC1+RAM+BATTERY
   rom[0x148] = 0x00; // 32 KiB ROM
@@ -106,7 +106,7 @@ export function makeGbaRom() {
   const rom = new Uint8Array(0x200);
   const put32 = (addr, v) => { rom[addr] = v & 0xff; rom[addr + 1] = (v >>> 8) & 0xff; rom[addr + 2] = (v >>> 16) & 0xff; rom[addr + 3] = (v >>> 24) & 0xff; };
   put32(0x00, 0xea00002e); // b 0xc0
-  const title = 'EMULINGOTEST';
+  const title = 'SPRITESPEAK';
   for (let i = 0; i < title.length; i++) rom[0xa0 + i] = title.charCodeAt(i);
   'ETST'.split('').forEach((c, i) => { rom[0xac + i] = c.charCodeAt(0); });
   rom[0xb0] = 0x30; rom[0xb1] = 0x31; // maker code '01'

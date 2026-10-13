@@ -8,7 +8,7 @@ import { transformWithEsbuild } from 'vite';
 import { SW_SOURCE, renderServiceWorker } from '../../build/sw-plugin.js';
 
 const ORIGIN = 'https://user.github.io';
-const BASE = `${ORIGIN}/emulingo/`;
+const BASE = `${ORIGIN}/spritespeak/`;
 const MANIFEST = {
   build: 'abc1234',
   version: 'abc1234-0123456789',
@@ -90,7 +90,7 @@ function load({ code = SOURCE, manifest = MANIFEST, routes = {}, scope = BASE, w
     clients: { claim: vi.fn(async () => {}) },
     skipWaiting: vi.fn(async () => {}),
     addEventListener: (type, fn) => { listeners[type] = fn; },
-    __EMULINGO_SW_MANIFEST__: manifest,
+    __SPRITESPEAK_SW_MANIFEST__: manifest,
   };
   const context = vm.createContext({
     self, caches: storage, fetch: wrapFetch(net), Request, Response, Headers, URL, console,
@@ -448,7 +448,7 @@ describe('dist/sw.js', () => {
   it('works the same once the manifest is inlined and the code minified', async () => {
     const rendered = renderServiceWorker(SOURCE, MANIFEST);
     const { code } = await transformWithEsbuild(rendered, 'sw.js', { minify: true, target: 'es2020' });
-    expect(code).not.toContain('__EMULINGO_SW_MANIFEST__');
+    expect(code).not.toContain('__SPRITESPEAK_SW_MANIFEST__');
     const sw = load({ code, manifest: undefined, routes: shellRoutes() });
     await sw.lifecycle('install');
     expect(sw.storage.urls(shellName(sw))).toHaveLength(MANIFEST.precache.length);

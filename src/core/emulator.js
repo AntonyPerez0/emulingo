@@ -36,10 +36,10 @@ const STALL_TIMEOUT_MS = 90_000; // no visible progress once EmulatorJS runs (bi
 const HARD_TIMEOUT_MS = 10 * 60_000;
 const POLL_MS = 250;
 const EJECT_SAVE_BUDGET_MS = 4000;
-const GAME_LOCK = 'emulingo:game';
+const GAME_LOCK = 'emulingo:game'; // former name, shared with tabs on older versions (see idb.js)
 const GAME_LOCK_WAIT_MS = 2000; // a reload (Eject, another game) frees the old page's lock a moment later
 
-// Emulingo has its own pause, restart, save/load and fullscreen controls.
+// Spritespeak has its own pause, restart, save/load and fullscreen controls.
 // Hidden buttons also stop being invisible keyboard stops (A11Y-M1).
 // Keys verified against EmulatorJS 4.2.3 defaultButtonOptions.
 export const EJS_BUTTONS = Object.freeze({
@@ -200,7 +200,7 @@ export function getKeyMap() {
 // its context) so no other WebGL user pays for the extra copy.
 function installCanvasPatch() {
   const proto = globalThis.HTMLCanvasElement && HTMLCanvasElement.prototype;
-  if (!proto || proto.__emulingoPatched) return;
+  if (!proto || proto.__spritespeakPatched) return;
   const original = proto.getContext;
   proto.getContext = function getContext(type, attrs) {
     if (typeof type === 'string' && type.startsWith('webgl') && this.classList && this.classList.contains('ejs_canvas')) {
@@ -208,7 +208,7 @@ function installCanvasPatch() {
     }
     return original.call(this, type, attrs);
   };
-  Object.defineProperty(proto, '__emulingoPatched', { value: true });
+  Object.defineProperty(proto, '__spritespeakPatched', { value: true });
 }
 
 // RetroArch's web frontend asks for a screen wake lock and never handles a
@@ -285,7 +285,7 @@ function settleStart(s, err) {
 
 const START_ERRORS = {
   timeout: 'The emulator is taking too long to start. Check your internet connection and try again.',
-  busy: 'A game is already running in another Emulingo tab or window. Close it there, then select Try again.',
+  busy: 'A game is already running in another Spritespeak tab or window. Close it there, then select Try again.',
   'loader-failed': 'Couldn’t load the emulator. Check your internet connection and try again.'
 };
 
@@ -326,7 +326,7 @@ function keepGameFocusable() {
 }
 
 // GameManager's 'exit' handler unmounts the save folder; IDBFS then deletes
-// every battery save (EMU-01). Emulingo never needs it: it reloads instead.
+// every battery save (EMU-01). Spritespeak never needs it: it reloads instead.
 function dropExitHandler(e) {
   if (e && e.functions) e.functions.exit = [];
 }
@@ -456,7 +456,7 @@ async function boot(s, bytes, opts) {
   const script = document.createElement('script');
   script.src = EJS_DATA + 'loader.js';
   script.async = true;
-  script.dataset.emulingo = 'ejs-loader';
+  script.dataset.spritespeak = 'ejs-loader';
   script.onerror = () => failStart(s, 'loader-failed', 'loader.js');
   s.injected = true;
   // not inside #game: EmulatorJS empties the player element
@@ -1035,7 +1035,7 @@ export function isFullscreen() {
   return !!fullscreenElement();
 }
 
-// Fullscreen the stage (game plus Emulingo's overlays), not just the canvas.
+// Fullscreen the stage (game plus Spritespeak's overlays), not just the canvas.
 // Resolves true when fullscreen afterwards.
 export async function toggleFullscreen(target = null) {
   try {

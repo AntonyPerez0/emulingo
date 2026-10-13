@@ -25,7 +25,7 @@ process.env.PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK ??= '1';
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt);
 const HEADED = argv.includes('--headed');
-const SHOTS = arg('--shots', path.join(os.tmpdir(), 'emulingo-e2e-learn'));
+const SHOTS = arg('--shots', path.join(os.tmpdir(), 'spritespeak-e2e-learn'));
 const PORTS = [5480, 5481, 5482, 5483, 5484, 5485, 5486, 5487];
 const VIEWS = ['review', 'deck', 'dictionary'];
 const SIZES = {

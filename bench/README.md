@@ -1,6 +1,6 @@
 # OCR bench
 
-A headless benchmark that measures how well Emulingo reads Pokémon-style
+A headless benchmark that measures how well Spritespeak reads Pokémon-style
 Game Boy / GBC / GBA screens, so OCR changes can be judged by numbers instead
 of by eye.
 

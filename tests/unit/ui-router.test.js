@@ -78,7 +78,7 @@ describe('initRouter', () => {
     expect(document.querySelector('section[data-view="play"]').hidden).toBe(false);
     expect(document.querySelector('section[data-view="review"]').hidden).toBe(true);
     expect(document.activeElement).toBe(before);
-    expect(document.title).toBe('Play · Emulingo');
+    expect(document.title).toBe('Play · Spritespeak');
     expect(document.body.dataset.view).toBe('play');
     expect(document.querySelector('[data-nav="play"]').getAttribute('aria-current')).toBe('page');
     expect(currentView()).toBe('play');
@@ -101,7 +101,7 @@ describe('initRouter', () => {
     expect(document.querySelector('section[data-view="play"]').hidden).toBe(true);
     expect(document.querySelector('[data-nav="review"]').getAttribute('aria-current')).toBe('page');
     expect(document.querySelector('[data-nav="play"]').hasAttribute('aria-current')).toBe(false);
-    expect(document.title).toBe('Review · Emulingo');
+    expect(document.title).toBe('Review · Spritespeak');
     expect(document.activeElement.textContent).toBe('Review');
     await go('#/play');
     await go('#/review?card=3');
@@ -187,7 +187,7 @@ describe('initRouter', () => {
     expect(section.querySelector('[role="alert"]').textContent).toContain('This page couldn’t load');
     expect(section.querySelector('[data-router-reload]')).not.toBeNull();
     expect(document.activeElement.tagName).toBe('H1');
-    expect(document.title).toBe('Deck · Emulingo');
+    expect(document.title).toBe('Deck · Spritespeak');
     err.mockRestore();
   });
 

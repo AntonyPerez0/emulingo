@@ -24,7 +24,7 @@ import { createCdnRouter } from '../../bench/lib/routes.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const port = Number(process.env.PORT || 5471);
-const outDir = process.env.OUT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'emulingo-engine-'));
+const outDir = process.env.OUT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'spritespeak-engine-'));
 const failures = [];
 const check = (ok, msg) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); if (!ok) failures.push(msg); };
 

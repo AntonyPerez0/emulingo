@@ -118,7 +118,7 @@ function syncShortcutHints() {
 }
 
 function cardsChanged() {
-  window.dispatchEvent(new Event('emulingo:cards-changed'));
+  window.dispatchEvent(new Event('spritespeak:cards-changed'));
 }
 
 function setPhase(phase) {

@@ -29,7 +29,7 @@ export function startServer({ port, mounts = {}, pages = {} } = {}) {
       if (p.startsWith(prefix)) { file = path.join(dir, p.slice(prefix.length)); break; }
     }
     if (!file) file = path.join(REPO_ROOT, p);
-    // '..' segments must not climb out (a sibling '/home/user/emulingo2'
+    // '..' segments must not climb out (a sibling '/home/user/spritespeak2'
     // also starts with REPO_ROOT, hence the separator)
     const within = (dir) => file === dir || file.startsWith(dir.endsWith(path.sep) ? dir : dir + path.sep);
     const base = [REPO_ROOT, ...Object.values(mounts)].find(within);

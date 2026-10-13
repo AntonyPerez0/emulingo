@@ -140,7 +140,7 @@ describe('failures never hang', () => {
     vi.advanceTimersByTime(5000);
     const err = await p;
     expect(err.name).toBe('BlockedError');
-    expect(err.message).toMatch(/another Emulingo tab/i);
+    expect(err.message).toMatch(/another Spritespeak tab/i);
     vi.useRealTimers();
     old.close();
     // after the other tab is gone, opening works again

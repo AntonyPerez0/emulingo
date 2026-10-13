@@ -154,7 +154,7 @@ export function createOcrSession({ onStatus = () => {}, onCapture = () => {}, on
       if (res.status === 'added') {
         cardsAdded++;
         onCardsAdded(cardsAdded);
-        window.dispatchEvent(new Event('emulingo:cards-changed'));
+        window.dispatchEvent(new Event('spritespeak:cards-changed'));
       }
     }
   }

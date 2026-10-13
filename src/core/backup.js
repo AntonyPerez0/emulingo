@@ -7,6 +7,8 @@
 // Every imported field goes through the same validators as stored data, so
 // a crafted file can't inject markup or break the app. v1 backups
 // ({ version: 1, 'emulingo:cards': '<json>', … }) are accepted too.
+// 'emulingo' is the app's former name; backups keep it so they restore in
+// versions from before and after the rename alike.
 
 import { flush, collection, cancelPending } from './db.js';
 import { idbGet, idbSet, idbDel, idbKeys, closeDb, deleteDatabase } from './idb.js';
@@ -189,7 +191,7 @@ export async function exportBackup({ includeSaves = false } = {}) {
 
 export function backupFileName(date = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
-  return `emulingo-backup-${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}.json`;
+  return `spritespeak-backup-${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}.json`;
 }
 
 // ---- parse + validate ----
@@ -334,24 +336,24 @@ export async function parseBackup(file) {
   if (typeof file === 'string') {
     text = file;
   } else if (file && typeof file.text === 'function') {
-    if (file.size > MAX_FILE_BYTES) throw new BackupError('This file is too large to be an Emulingo backup.');
+    if (file.size > MAX_FILE_BYTES) throw new BackupError('This file is too large to be a Spritespeak backup.');
     text = await file.text();
   } else {
-    throw new BackupError('Choose an Emulingo backup file.');
+    throw new BackupError('Choose a Spritespeak backup file.');
   }
   let json;
   try {
     json = JSON.parse(text);
   } catch {
-    throw new BackupError('This file isn’t an Emulingo backup (it couldn’t be read).');
+    throw new BackupError('This file isn’t a Spritespeak backup (it couldn’t be read).');
   }
-  if (!json || typeof json !== 'object' || Array.isArray(json)) throw new BackupError('This file isn’t an Emulingo backup.');
+  if (!json || typeof json !== 'object' || Array.isArray(json)) throw new BackupError('This file isn’t a Spritespeak backup.');
   if (json.app === 'emulingo' && json.format === BACKUP_FORMAT) return parseV2(json);
   if (json.app === 'emulingo' && Number(json.format) > BACKUP_FORMAT) {
-    throw new BackupError('This backup was made by a newer version of Emulingo. Update the app, then try again.');
+    throw new BackupError('This backup was made by a newer version of Spritespeak. Update the app, then try again.');
   }
   if (json.version === 1 && Object.keys(json).some((k) => k.startsWith('emulingo:'))) return parseV1(json);
-  throw new BackupError('This file isn’t an Emulingo backup.');
+  throw new BackupError('This file isn’t a Spritespeak backup.');
 }
 
 // ---- apply ----
@@ -474,7 +476,7 @@ function sessionKeys(prefix) {
   return out;
 }
 
-// Remove everything Emulingo and EmulatorJS stored on this device. Pending
+// Remove everything Spritespeak and EmulatorJS stored on this device. Pending
 // writes are dropped and further writes blocked; the UI reloads afterwards.
 // Each step runs even if an earlier one fails. Resolves with a report.
 export async function wipeAll() {

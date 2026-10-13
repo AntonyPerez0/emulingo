@@ -77,7 +77,7 @@ const speechOk = () => {
 };
 
 function cardsChanged() {
-  window.dispatchEvent(new Event('emulingo:cards-changed'));
+  window.dispatchEvent(new Event('spritespeak:cards-changed'));
 }
 
 const currentCard = () => (session && session.queue.length ? srs.getCard(session.queue[0]) : null);

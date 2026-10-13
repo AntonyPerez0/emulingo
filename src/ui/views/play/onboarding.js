@@ -65,7 +65,7 @@ export function createOnboarding(container, { onDone = () => {} } = {}) {
         <div class="onboarding__icon" aria-hidden="true">${icon('languages', { size: 24 })}</div>
         <div>
           <h2 class="onboarding__title" id="${ids.title}">Set up your languages</h2>
-          <p class="onboarding__lead">Emulingo reads the text in your game, translates it as you play and turns new sentences into flashcards.</p>
+          <p class="onboarding__lead">Spritespeak reads the text in your game, translates it as you play and turns new sentences into flashcards.</p>
         </div>
       </div>
       <form class="onboarding__form" novalidate data-onb-form>

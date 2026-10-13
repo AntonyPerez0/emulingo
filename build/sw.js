@@ -1,10 +1,11 @@
-// Emulingo service worker. build/sw-plugin.js writes dist/sw.js from this
-// file, replacing self.__EMULINGO_SW_MANIFEST__ with the build's manifest:
+// Spritespeak service worker. build/sw-plugin.js writes dist/sw.js from this
+// file, replacing self.__SPRITESPEAK_SW_MANIFEST__ with the build's manifest:
 //   { build, version, precache: [path], heavy: [path], models: { path: hash },
 //     cdnLimits: { entries, bytes } }
 // (paths relative to the app's folder). Classic script, no imports.
 //
-// Caches (all prefixed "emulingo-", which Settings › Erase everything clears):
+// Caches (all prefixed "emulingo-", the app's former name, which Settings ›
+// Erase everything clears by that prefix):
 //  - emulingo-shell-<scope>-<version>: the app shell, precached on install so
 //    the app opens offline after the first visit. Only older shell caches of
 //    this same app are deleted, never other apps' caches on a shared origin
@@ -17,7 +18,7 @@
 // Translation requests are never touched. Updates wait for the page to ask
 // ({type:'SKIP_WAITING'}), so a running game is never swapped out mid-play.
 
-const MANIFEST = self.__EMULINGO_SW_MANIFEST__ || { build: 'dev', version: 'dev', precache: [], heavy: [], models: {} };
+const MANIFEST = self.__SPRITESPEAK_SW_MANIFEST__ || { build: 'dev', version: 'dev', precache: [], heavy: [], models: {} };
 
 const BASE = new URL('./', self.location.href);
 const SCOPE_ID = hash(BASE.pathname);

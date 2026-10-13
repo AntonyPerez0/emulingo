@@ -77,7 +77,7 @@ export function entriesTsv(list, tgt) {
 
 export function exportFileName(ext, now = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
-  return `emulingo-dictionary-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.${ext}`;
+  return `spritespeak-dictionary-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.${ext}`;
 }
 
 /** The summary shown after a batch: { message, kind }. */
@@ -111,7 +111,7 @@ const speechOk = () => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function cardsChanged() {
-  window.dispatchEvent(new Event('emulingo:cards-changed'));
+  window.dispatchEvent(new Event('spritespeak:cards-changed'));
 }
 
 function errorText(err) {

@@ -1,7 +1,6 @@
 {
-  "id": "./",
-  "name": "Emulingo",
-  "short_name": "Emulingo",
+  "name": "Spritespeak",
+  "short_name": "Spritespeak",
   "description": "Play retro games you own and learn a language as you go: on-screen text is read, translated and turned into flashcards.",
   "lang": "en",
   "dir": "ltr",

@@ -99,7 +99,7 @@ async function startCdn(dir) {
   const key = path.join(dir, 'key.pem');
   const cert = path.join(dir, 'cert.pem');
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '2',
-    '-subj', '/CN=emulingo-smoke', '-addext', `subjectAltName=${CDN_HOSTS.map((h) => `DNS:${h}`).join(',')}`], { stdio: 'ignore' });
+    '-subj', '/CN=spritespeak-smoke', '-addext', `subjectAltName=${CDN_HOSTS.map((h) => `DNS:${h}`).join(',')}`], { stdio: 'ignore' });
   const served = [];
   const server = https.createServer({ key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, (req, res) => {
     const host = String(req.headers.host || '').replace(/:\d+$/, '');
@@ -217,7 +217,7 @@ async function waitForText(page, expected, { translated, timeout }) {
 
 async function main() {
   await setupEmulatorJs();
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'emulingo-pwa-'));
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'spritespeak-pwa-'));
   const outDir = path.join(work, 'dist');
   const { romPath } = writeAll(path.join(work, 'rom'));
   const firstPage = `${PAGES[0][0]} ${PAGES[0][1]}`;

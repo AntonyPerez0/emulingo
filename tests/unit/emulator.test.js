@@ -123,9 +123,9 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 async function waitForLoader() {
   await vi.waitFor(() => {
-    if (!document.querySelector('script[data-emulingo="ejs-loader"]')) throw new Error('no loader yet');
+    if (!document.querySelector('script[data-spritespeak="ejs-loader"]')) throw new Error('no loader yet');
   });
-  return document.querySelector('script[data-emulingo="ejs-loader"]');
+  return document.querySelector('script[data-spritespeak="ejs-loader"]');
 }
 
 // What EmulatorJS's loader.js + constructor do, minus the emulation.
@@ -313,7 +313,7 @@ describe('start and failure', () => {
     let settled = null;
     p.then(() => { settled = 'ok'; }, (e) => { settled = e; });
     await vi.advanceTimersByTimeAsync(10);
-    await vi.waitFor(() => document.querySelector('script[data-emulingo="ejs-loader"]') || Promise.reject(new Error('x')));
+    await vi.waitFor(() => document.querySelector('script[data-spritespeak="ejs-loader"]') || Promise.reject(new Error('x')));
     construct(fake);
     // a slow core download: progress every 60 s for 5 minutes
     for (let i = 1; i <= 5; i++) {
@@ -541,9 +541,9 @@ describe('one game per browser', () => {
   it('refuses to start while another tab or window runs a game', async () => {
     const request = vi.fn(() => Promise.reject(new DOMException('Timed out', 'TimeoutError')));
     withLocks(request);
-    await expect(emu.loadGame(ROM, BYTES)).rejects.toMatchObject({ code: 'busy', message: expect.stringMatching(/another Emulingo tab/u) });
+    await expect(emu.loadGame(ROM, BYTES)).rejects.toMatchObject({ code: 'busy', message: expect.stringMatching(/another Spritespeak tab/u) });
     expect(request).toHaveBeenCalledWith('emulingo:game', expect.any(Object), expect.any(Function));
-    expect(document.querySelector('script[data-emulingo="ejs-loader"]')).toBeNull();
+    expect(document.querySelector('script[data-spritespeak="ejs-loader"]')).toBeNull();
   });
 
   it('holds the lock for as long as the page runs the game', async () => {

@@ -90,7 +90,7 @@ describe('exportBackup', () => {
     expect(data.dictionary.length).toBeGreaterThan(1);
     expect(data.history).toHaveLength(1);
     expect(data.activity).toHaveLength(1);
-    expect(backup.backupFileName(new Date(2026, 9, 11))).toBe('emulingo-backup-2026-10-11.json');
+    expect(backup.backupFileName(new Date(2026, 9, 11))).toBe('spritespeak-backup-2026-10-11.json');
   });
 
   it('includes game saves with their ROM’s id, SHA-1 and file name when asked', async () => {
@@ -195,10 +195,10 @@ describe('validation', () => {
 
   it('rejects files that aren’t backups', async () => {
     await expect(backup.parseBackup(file('{not json'))).rejects.toMatchObject({ name: 'BackupError' });
-    await expect(backup.parseBackup(file([1, 2]))).rejects.toThrow('isn’t an Emulingo backup');
-    await expect(backup.parseBackup(file({ hello: 1 }))).rejects.toThrow('isn’t an Emulingo backup');
+    await expect(backup.parseBackup(file([1, 2]))).rejects.toThrow('isn’t a Spritespeak backup');
+    await expect(backup.parseBackup(file({ hello: 1 }))).rejects.toThrow('isn’t a Spritespeak backup');
     await expect(backup.parseBackup(file({ app: 'emulingo', format: 3 }))).rejects.toThrow('newer version');
-    await expect(backup.parseBackup(null)).rejects.toThrow('Choose an Emulingo backup file.');
+    await expect(backup.parseBackup(null)).rejects.toThrow('Choose a Spritespeak backup file.');
     await expect(backup.parseBackup({ size: 1e12, text: async () => '{}' })).rejects.toThrow('too large');
     await expect(backup.applyBackup(null)).rejects.toThrow('Nothing to restore.');
   });
@@ -354,8 +354,8 @@ describe('game saves', () => {
 });
 
 describe('wipeAll', () => {
-  it('removes Emulingo and EmulatorJS data only, and stops further writes', async () => {
-    window.history.pushState({}, '', '/emulingo/index.html');
+  it('removes Spritespeak and EmulatorJS data only, and stops further writes', async () => {
+    window.history.pushState({}, '', '/spritespeak/index.html');
     seed();
     await db.flush();
     await idb.idbSet('rom:r1', new Uint8Array([1]));
@@ -382,7 +382,7 @@ describe('wipeAll', () => {
     const reg = (scope) => ({ scope, unregister: async () => { unregistered.push(scope); return true; } });
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
-      value: { getRegistrations: async () => [reg(location.origin + '/emulingo/'), reg(location.origin + '/other/')] }
+      value: { getRegistrations: async () => [reg(location.origin + '/spritespeak/'), reg(location.origin + '/other/')] }
     });
 
     const otherTab = [];
@@ -401,7 +401,7 @@ describe('wipeAll', () => {
     expect(Object.keys(localStorage)).toEqual(['other-app:data']);
     expect(sessionStorage.getItem('emulingo:autostart')).toBe(null);
     expect(deleted).toEqual(['emulingo-shell-abc', 'emulingo-models-v1']);
-    expect(unregistered).toEqual([location.origin + '/emulingo/']);
+    expect(unregistered).toEqual([location.origin + '/spritespeak/']);
 
     // nothing comes back: no late flush, no settings write
     srs.addCard({ text: 'Neu', translation: 'New', src: 'de', tgt: 'en' });

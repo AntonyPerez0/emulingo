@@ -71,7 +71,7 @@ describe('renderServiceWorker', () => {
 });
 
 describe('in a Vite build', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'emulingo-sw-plugin-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spritespeak-sw-plugin-'));
   afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
   it('writes sw.js listing the output, public files included, and the CSP on index.html only', async () => {
@@ -147,7 +147,7 @@ describe('serviceWorkerDevReset', () => {
       expect(res.headers['cache-control']).toBe('no-store');
     }
     for (const url of ['/src/main.js', '/assets/sw.js', '/sw.json', '/']) expect(get(url).next).toHaveBeenCalled();
-    expect(serve('/emulingo/')('/emulingo/sw.js').res.body).toBe(DEV_RESET_WORKER);
+    expect(serve('/spritespeak/')('/spritespeak/sw.js').res.body).toBe(DEV_RESET_WORKER);
   });
 
   it('serves a worker that clears the v1 caches and unregisters itself', async () => {

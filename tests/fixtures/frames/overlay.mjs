@@ -13,7 +13,7 @@ import { decodePng, encodePng } from './png.mjs';
 import { findContainers, createContainerTracker } from '../../../src/core/ocr/containers.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const OUT = process.argv[2] || path.join(os.tmpdir(), 'emulingo-containers.png');
+const OUT = process.argv[2] || path.join(os.tmpdir(), 'spritespeak-containers.png');
 const ids = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
 const COLOURS = { dialog: [0, 200, 0], battle: [0, 170, 170], menu: [255, 140, 0], box: [230, 200, 0], free: [128, 128, 128], zone: [0, 0, 255] };
 const S = 2, PAD = 6, COLS = 6, CW = 240 * S + PAD, CH = 160 * S + PAD;

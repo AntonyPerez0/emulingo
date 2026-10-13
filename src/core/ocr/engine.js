@@ -204,7 +204,7 @@ function defaultModelBase() {
 }
 
 function defaultWorker() {
-  return new Worker(new URL('./ocr.worker.js', import.meta.url), { type: 'module', name: 'emulingo-ocr' });
+  return new Worker(new URL('./ocr.worker.js', import.meta.url), { type: 'module', name: 'spritespeak-ocr' });
 }
 
 // --- worker client --------------------------------------------------------------

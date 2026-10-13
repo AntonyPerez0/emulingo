@@ -14,7 +14,7 @@ export const COLLECTIONS = RECORD_STORES;
 const WRITE_DELAY = 400;
 const MAX_WAIT = 2000;
 const RETRY_DELAYS = [5000, 15000, 60000];
-const CHANNEL = 'emulingo-db';
+const CHANNEL = 'emulingo-db'; // former name, so tabs on older versions still hear us (see idb.js)
 // v1 kept everything in localStorage; these move into IndexedDB once.
 // ('emulingo:roms' is migrated by rom.js, which owns the ROM library.)
 const V1_KEYS = { cards: 'cards', dict: 'dict', history: 'history', activity: 'activitylog' };
@@ -92,11 +92,11 @@ export function onChange(fn) {
 const MESSAGES = {
   quota: 'Storage is full, so recent changes aren’t being saved. Export a backup, then delete cards or games you no longer need.',
   unavailable: 'This browser is blocking storage, so nothing will be kept after you close the page.',
-  blocked: 'Emulingo is open in another tab with an older version. Close the other tabs, then reload this one.',
-  failed: 'Couldn’t save your latest changes. Emulingo will keep trying.',
+  blocked: 'Spritespeak is open in another tab with an older version. Close the other tabs, then reload this one.',
+  failed: 'Couldn’t save your latest changes. Spritespeak will keep trying.',
   erased: 'Your data was erased in another tab. Reload this page to start fresh.',
-  // the saved data is from a newer Emulingo than this (cached) page
-  outdated: 'A newer version of Emulingo saved data here. Reload this page to update.'
+  // the saved data is from a newer Spritespeak than this (cached) page
+  outdated: 'A newer version of Spritespeak saved data here. Reload this page to update.'
 };
 
 function emit(listeners, info) {
@@ -117,7 +117,7 @@ export function reportStorageError(error, { source = 'db', kind } = {}) {
     source,
     error
   };
-  console.warn('[emulingo] storage error', source, error);
+  console.warn('[spritespeak] storage error', source, error);
   if (isNew) emit(errorListeners, lastError);
 }
 
@@ -163,7 +163,7 @@ function ensureSanitized(name) {
   const map = mem.get(name);
   for (const [id, rec] of [...map]) {
     let clean = null;
-    try { clean = fn(rec, ctx); } catch (e) { console.warn('[emulingo] dropped damaged record', name, e); }
+    try { clean = fn(rec, ctx); } catch (e) { console.warn('[spritespeak] dropped damaged record', name, e); }
     if (!clean || !validId(clean.id)) {
       map.delete(id);
       markOp(name, id, 'del');
@@ -430,7 +430,7 @@ async function readAndApply(names) {
 }
 
 function reloadCollections(names) {
-  const run = () => readAndApply(names).catch((err) => console.warn('[emulingo] reload failed', err));
+  const run = () => readAndApply(names).catch((err) => console.warn('[spritespeak] reload failed', err));
   const p = (reloading || Promise.resolve()).then(run).finally(() => {
     if (reloading === p) reloading = null;
   });

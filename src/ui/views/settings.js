@@ -29,7 +29,7 @@ import { downloadBlob } from '../../core/utils.js';
 import { version as APP_VERSION } from '../../../package.json';
 
 const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
-const REPO_URL = 'https://github.com/AntonyPerez0/emulingo';
+const REPO_URL = 'https://github.com/AntonyPerez0/spritespeak';
 const SELECT_COMMIT_MS = 600; // arrow-key browsing settles before anything is saved
 const SLIDER_COMMIT_MS = 350;
 const SAVED_MS = 4000;
@@ -118,7 +118,7 @@ const CREDITS = [
     parts: ['English: MIT and BSD', 'French: MPL-2.0', 'German: GPL-2.0 or GPL-3.0', 'Italian: GPL-3.0', 'Spanish: GPL-3.0, LGPL-3.0 or MPL-1.1'],
     license: 'Per language',
   },
-  { name: 'Lucide and Feather icons', use: 'Icons, adapted for Emulingo.', license: 'ISC and MIT' },
+  { name: 'Lucide and Feather icons', use: 'Icons, adapted for Spritespeak.', license: 'ISC and MIT' },
 ];
 
 // ---- Module state (one Settings view per page) ----------------------------------
@@ -505,7 +505,7 @@ function readingSection(s) {
     ${choiceField({
       id: 'set-scan-speed',
       label: 'Scan speed',
-      hint: 'How often Emulingo looks for new text. Relaxed saves battery; Fast notices text sooner.',
+      hint: 'How often Spritespeak looks for new text. Relaxed saves battery; Fast notices text sooner.',
       options: [{ value: 'relaxed', label: 'Relaxed' }, { value: 'normal', label: 'Normal' }, { value: 'fast', label: 'Fast' }],
       value: s.scanSpeed,
     })}
@@ -696,7 +696,7 @@ function dataSection() {
       ${subhead('Privacy')}
       <ul class="settings-privacy" role="list">
         <li><strong>Stays on this device:</strong> your games, saves, flashcards, dictionary, history and settings. Games are never uploaded, and there’s no account or tracking.</li>
-        <li><strong>Sent for translation:</strong> the text Emulingo reads from the game screen, and words you look up, go to Google Translate — or to MyMemory if Google doesn’t respond. These free services aren’t run by Emulingo and have their own privacy policies. Translations are kept on this device, so a line is sent only once.</li>
+        <li><strong>Sent for translation:</strong> the text Spritespeak reads from the game screen, and words you look up, go to Google Translate — or to MyMemory if Google doesn’t respond. These free services aren’t run by Spritespeak and have their own privacy policies. Translations are kept on this device, so a line is sent only once.</li>
         <li><strong>Downloaded when needed:</strong> the emulator from cdn.emulatorjs.org, spelling dictionaries from cdn.jsdelivr.net, Classic text-recognition data from tessdata.projectnaptha.com, and the Japanese and Chinese reader from PaddleOCR’s model server (Baidu Cloud). Like any website, these servers see your IP address.</li>
         <li><strong>Speech:</strong> voices marked “online” come from your browser’s speech service and may send the text there.</li>
       </ul>
@@ -757,7 +757,7 @@ function shortcutsMarkup() {
 function aboutSection() {
   return sectionCard(SECTIONS[8], html`
     <div class="settings-about">
-      <p class="settings-about__name">Emulingo</p>
+      <p class="settings-about__name">Spritespeak</p>
       <p class="settings-text settings-text--muted">Version ${APP_VERSION} · build <code>${BUILD}</code></p>
       <p class="settings-text">Play games you own and learn a language as you go.</p>
       <p><a class="settings-link" href="${REPO_URL}" target="_blank" rel="noopener noreferrer">${icon('external-link', { size: 16 })}<span>Source code on GitHub</span><span class="visually-hidden"> (opens in a new tab)</span></a></p>
@@ -1071,7 +1071,7 @@ async function importFile(file, btn) {
   try {
     summary = await parseBackup(file);
   } catch (err) {
-    showActionError('backup', err && err.name === 'BackupError' ? err.message : 'This file couldn’t be read. Choose an Emulingo backup file.');
+    showActionError('backup', err && err.name === 'BackupError' ? err.message : 'This file couldn’t be read. Choose a Spritespeak backup file.');
     return;
   } finally {
     setBusy(btn, false);
@@ -1101,7 +1101,7 @@ async function importFile(file, btn) {
   } finally {
     setBusy(btn, false);
     syncAll();
-    window.dispatchEvent(new Event('emulingo:cards-changed'));
+    window.dispatchEvent(new Event('spritespeak:cards-changed'));
     refreshCache();
     refreshStorage();
   }
@@ -1112,7 +1112,7 @@ async function persistData(btn) {
   const granted = await requestPersistence().catch(() => false);
   setBusy(btn, false);
   if (granted) markSaved('storage', 'Your data is now kept persistent.', KEEP);
-  else markSaved('storage', 'Your browser didn’t allow it. Installing Emulingo as an app, or visiting more often, usually helps.', KEEP);
+  else markSaved('storage', 'Your browser didn’t allow it. Installing Spritespeak as an app, or visiting more often, usually helps.', KEEP);
   await refreshStorage();
 }
 

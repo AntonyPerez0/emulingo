@@ -20,14 +20,14 @@ import { encodePng } from '../fixtures/frames/png.mjs';
 
 const EJS_DIR = path.join(REPO_ROOT, 'bench', '.cache', 'emulatorjs');
 const ROM_DIR = path.join(REPO_ROOT, 'bench', '.cache', 'e2e');
-const OUT = process.argv.find((a) => a.startsWith('--out='))?.slice(6) || path.join(os.tmpdir(), 'emulingo-e2e-capture');
+const OUT = process.argv.find((a) => a.startsWith('--out='))?.slice(6) || path.join(os.tmpdir(), 'spritespeak-e2e-capture');
 const port = +(process.argv.find((a) => a.startsWith('--port='))?.slice(7) || 5452);
 
 if (!fs.existsSync(path.join(EJS_DIR, 'loader.js'))) {
   console.error('EmulatorJS is not laid out: run node bench/e2e/setup.mjs first');
   process.exit(2);
 }
-if (!fs.existsSync(path.join(ROM_DIR, 'emulingo-ocr-test.gb'))) writeAll(ROM_DIR);
+if (!fs.existsSync(path.join(ROM_DIR, 'spritespeak-ocr-test.gb'))) writeAll(ROM_DIR);
 fs.mkdirSync(OUT, { recursive: true });
 
 // stage: the #game box (CSS px). 'fit' = aspect-ratio box like the v2 stage
@@ -54,8 +54,8 @@ const html = (stage) => `<!doctype html><meta charset="utf-8"><meta name="viewpo
   window.EJS_player = '#game';
   window.EJS_core = 'gb';
   window.EJS_pathtodata = '/ejs/';
-  window.EJS_gameUrl = '/rom/emulingo-ocr-test.gb';
-  window.EJS_gameName = 'emulingo-ocr-test';
+  window.EJS_gameUrl = '/rom/spritespeak-ocr-test.gb';
+  window.EJS_gameName = 'spritespeak-ocr-test';
   window.EJS_startOnLoaded = true;
   window.EJS_volume = 0;
   window.EJS_Buttons = { exitEmulation: false, cacheManager: false, netplay: false };

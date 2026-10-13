@@ -106,7 +106,7 @@ async function startVite() {
       const server = await createServer({
         root: ROOT,
         configFile: path.join(ROOT, 'vite.config.js'),
-        cacheDir: path.join(os.tmpdir(), `emulingo-qa-vite-${port}`),
+        cacheDir: path.join(os.tmpdir(), `spritespeak-qa-vite-${port}`),
         logLevel: 'warn',
         clearScreen: false,
         server: { port, strictPort: true, host: '127.0.0.1', hmr: false, watch: { ignored: ['**/*'] } },
@@ -552,7 +552,7 @@ async function phone(browser, router, base, romPath) {
   const dupes = texts.filter((t, i) => texts.indexOf(t) !== i);
   check('phone: zero duplicate history entries', dupes.length === 0, texts);
   check('phone: no page errors', errors.length === 0, errors.slice(0, 6));
-  await page.screenshot({ path: path.join(os.tmpdir(), 'emulingo-qa-phone.png') });
+  await page.screenshot({ path: path.join(os.tmpdir(), 'spritespeak-qa-phone.png') });
   await context.close();
 }
 
@@ -560,7 +560,7 @@ async function phone(browser, router, base, romPath) {
 
 async function run() {
   await setupEmulatorJs();
-  const romDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emulingo-qa-rom-'));
+  const romDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spritespeak-qa-rom-'));
   const { romPath } = writeAll(romDir);
   const hudRomPath = writeAll(romDir, { hud: true }).romPath;
   const { server, base } = await startVite();

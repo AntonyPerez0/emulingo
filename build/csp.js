@@ -65,7 +65,7 @@ export function injectCsp(html, policy = serializeCsp()) {
  */
 export function contentSecurityPolicy({ policy = serializeCsp(), pages = ['/index.html'] } = {}) {
   return {
-    name: 'emulingo:csp',
+    name: 'spritespeak:csp',
     apply: 'build',
     transformIndexHtml: {
       order: 'post',

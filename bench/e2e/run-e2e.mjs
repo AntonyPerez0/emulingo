@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// End-to-end harness: real Emulingo app (Vite dev server) + real EmulatorJS
+// End-to-end harness: real Spritespeak app (Vite dev server) + real EmulatorJS
 // (gambatte core, served locally) + homebrew test ROM in headless Chromium.
 // Verifies the full loop  game -> snapshot -> OCR -> translate -> UI.
 //
@@ -389,7 +389,7 @@ async function main() {
     const type = m.type();
     if (type === 'error') consoleCounts.error++;
     if (type === 'warning') consoleCounts.warning++;
-    if (type === 'error' || type === 'warning' || /emulingo|ocr|paddle|tesseract/i.test(m.text())) {
+    if (type === 'error' || type === 'warning' || /spritespeak|ocr|paddle|tesseract/i.test(m.text())) {
       report.console.push({ t: Date.now() - t0, type, text: m.text().slice(0, 600) });
     }
   });

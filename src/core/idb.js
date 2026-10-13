@@ -1,4 +1,8 @@
 // IndexedDB access for the 'emulingo' database.
+// Storage names keep the app's former name, Emulingo, so data saved before
+// it became Spritespeak is still found: this database, the 'emulingo:'
+// localStorage keys, the backup marker, the cross-tab channel and lock, and
+// the 'emulingo-' caches (which Erase everything finds by that prefix).
 // - 'kv' (out-of-line keys) is kept from v1: rom:<id>, state:<id>…, sram:<id>,
 //   spelldict:<code>. The idb* helpers below read and write it.
 // - The other stores hold one record per item ({ id, … }) and are managed by
@@ -80,7 +84,7 @@ export function openDb() {
     req.onblocked = () => {
       clearTimeout(blockedTimer);
       blockedTimer = setTimeout(() => fail(new DOMException(
-        'Storage is busy in another Emulingo tab. Close other tabs and reload.', 'BlockedError'
+        'Storage is busy in another Spritespeak tab. Close other tabs and reload.', 'BlockedError'
       )), BLOCKED_GRACE_MS);
     };
   });

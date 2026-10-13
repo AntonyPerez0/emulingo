@@ -260,6 +260,6 @@ describe('helpers', () => {
     expect(mod.dueLabel(learning, NOW)).toBe('Next review tomorrow');
     expect(mod.dueLabel(mature, NOW)).toBe('Due now');
     expect(mod.filterCards([fresh, learning, mature], { filter: 'learning' }).map((c) => c.id)).toEqual(['b']);
-    expect(mod.exportFileName('csv', new Date(2026, 0, 5))).toBe('emulingo-deck-2026-01-05.csv');
+    expect(mod.exportFileName('csv', new Date(2026, 0, 5))).toBe('spritespeak-deck-2026-01-05.csv');
   });
 });

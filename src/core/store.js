@@ -213,7 +213,7 @@ export const store = {
   set(key, value) {
     const v = coerceSetting(key, value);
     if (v === undefined) {
-      console.warn('[emulingo] ignored invalid setting', key, value);
+      console.warn('[spritespeak] ignored invalid setting', key, value);
       return false;
     }
     apply({ [key]: v });

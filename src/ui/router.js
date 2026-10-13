@@ -6,7 +6,7 @@ import { icon } from './icons.js';
 import { focusHeading } from './a11y.js';
 import { toast } from './toast.js';
 
-const APP_NAME = 'Emulingo';
+const APP_NAME = 'Spritespeak';
 const entries = new Map();
 const listeners = new Set();
 let current = null;

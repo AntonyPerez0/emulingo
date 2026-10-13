@@ -2,7 +2,7 @@
 //
 // EmulatorJS keeps in-game saves in an Emscripten IDBFS mount at /data/saves
 // (IndexedDB database '/data/saves', store 'FILE_DATA', keyed by full path).
-// Its own exit handler can wipe that folder (EMU-01), so Emulingo mirrors the
+// Its own exit handler can wipe that folder (EMU-01), so Spritespeak mirrors the
 // files of the running game into its own store ('sram:<romId>') and puts them
 // back before the core boots when EmulatorJS's copy is missing or older.
 
